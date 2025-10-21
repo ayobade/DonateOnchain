@@ -1,13 +1,18 @@
 import Header from "../component/Header";
 import Footer from "../component/Footer";
+import ProductCard from "../component/ProductCard";
+import CauseCard from "../component/CauseCard";
+import CreatorCard from "../component/CreatorCard";
 import HeroImage from "../assets/Heroimg.png";
 import Clothimg from "../assets/Clothimg.png";
-import Causeimg from "../assets/Causeimg.png";
 import Bannerleft from "../assets/Bannerleft.png";
 import Bannerright from "../assets/Bannerright.png";
 import BannerNft from "../assets/BannerNft.png";
+import { useNavigate } from 'react-router-dom';
+import { products, causes, creators } from '../data/databank';
 
 const Home = () => {
+    const navigate = useNavigate()
   return (
     <div>
       <Header />
@@ -60,96 +65,17 @@ const Home = () => {
           Popular Campaigns
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-          <div className="rounded-3xl p-4 hover:border hover:border-black/10 transition-colors">
-            <div className="rounded-2xl bg-[#eeeeee]">
-              <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center">
-                <img
-                  src={Clothimg}
-                  alt="Cloth"
-                  className="w-[85%] h-[85%] object-contain"
-                />
-              </div>
-            </div>
-            <div className="mt-4">
-              <h3 className="text-[22px] font-semibold leading-tight">
-                Live In Balance
-              </h3>
-              <p className="text-[14px] text-black/60">By OluwaDayo</p>
-              <p className="mt-3 text-[22px] font-semibold">₦20,000</p>
-            </div>
-          </div>
-          <div className="rounded-3xl p-4 hover:border hover:border-black/10 transition-colors">
-            <div className="rounded-2xl bg-[#eeeeee]">
-              <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center">
-                <img
-                  src={Clothimg}
-                  alt="Cloth"
-                  className="w-[85%] h-[85%] object-contain"
-                />
-              </div>
-            </div>
-            <div className="mt-4">
-              <h3 className="text-[22px] font-semibold leading-tight">
-                Live In Balance
-              </h3>
-              <p className="text-[14px] text-black/60">By OluwaDayo</p>
-              <p className="mt-3 text-[22px] font-semibold">₦20,000</p>
-            </div>
-          </div>
-          <div className="rounded-3xl p-4 hover:border hover:border-black/10 transition-colors">
-            <div className="rounded-2xl bg-[#eeeeee]">
-              <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center">
-                <img
-                  src={Clothimg}
-                  alt="Cloth"
-                  className="w-[85%] h-[85%] object-contain"
-                />
-              </div>
-            </div>
-            <div className="mt-4">
-              <h3 className="text-[22px] font-semibold leading-tight">
-                Live In Balance
-              </h3>
-              <p className="text-[14px] text-black/60">By OluwaDayo</p>
-              <p className="mt-3 text-[22px] font-semibold">₦20,000</p>
-            </div>
-          </div>
-          <div className="rounded-3xl p-4 hover:border hover:border-black/10 transition-colors">
-            <div className="rounded-2xl bg-[#eeeeee]">
-              <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center">
-                <img
-                  src={Clothimg}
-                  alt="Cloth"
-                  className="w-[85%] h-[85%] object-contain"
-                />
-              </div>
-            </div>
-            <div className="mt-4">
-              <h3 className="text-[22px] font-semibold leading-tight">
-                Live In Balance
-              </h3>
-              <p className="text-[14px] text-black/60">By OluwaDayo</p>
-              <p className="mt-3 text-[22px] font-semibold">₦20,000</p>
-            </div>
-          </div>
-          <div className="rounded-3xl p-4 hover:border hover:border-black/10 transition-colors">
-            <div className="rounded-2xl bg-[#eeeeee]">
-              <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center">
-                <img
-                  src={Clothimg}
-                  alt="Cloth"
-                  className="w-[85%] h-[85%] object-contain"
-                />
-              </div>
-            </div>
-            <div className="mt-4">
-              <h3 className="text-[22px] font-semibold leading-tight">
-                Live In Balance
-              </h3>
-              <p className="text-[14px] text-black/60">By OluwaDayo</p>
-              <p className="mt-3 text-[22px] font-semibold">₦20,000</p>
-            </div>
-          </div>
+          {products.slice(0, 5).map((product) => (
+            <ProductCard
+              key={product.id}
+              image={product.image}
+              title={product.title}
+              creator={product.creator}
+              price={product.price}
+              alt={product.title}
+              onClick={() => navigate(`/product/${product.id}`)}
+            />
+          ))}
         </div>
       </section>
 
@@ -248,91 +174,15 @@ const Home = () => {
           Popular Causes
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-          <div className="rounded-3xl p-4 hover:border hover:border-black/10 transition-colors">
-            <div className="rounded-2xl bg-[#eeeeee]">
-              <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center">
-                <img
-                  src={Causeimg}
-                  alt="Cause"
-                  className="w-[85%] h-[85%] object-contain"
-                />
-              </div>
-            </div>
-            <div className="mt-4">
-              <h3 className="text-[22px] font-semibold leading-tight">
-                Children In Gaza
-              </h3>
-              <p className="text-[14px] text-black/60">The Palestine NGO</p>
-            </div>
-          </div>
-          <div className="rounded-3xl p-4 hover:border hover:border-black/10 transition-colors">
-            <div className="rounded-2xl bg-[#eeeeee]">
-              <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center">
-                <img
-                  src={Causeimg}
-                  alt="Cause"
-                  className="w-[85%] h-[85%] object-contain"
-                />
-              </div>
-            </div>
-            <div className="mt-4">
-              <h3 className="text-[22px] font-semibold leading-tight">
-                Children In Gaza
-              </h3>
-              <p className="text-[14px] text-black/60">The Palestine NGO</p>
-            </div>
-          </div>
-          <div className="rounded-3xl p-4 hover:border hover:border-black/10 transition-colors">
-            <div className="rounded-2xl bg-[#eeeeee]">
-              <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center">
-                <img
-                  src={Causeimg}
-                  alt="Cause"
-                  className="w-[85%] h-[85%] object-contain"
-                />
-              </div>
-            </div>
-            <div className="mt-4">
-              <h3 className="text-[22px] font-semibold leading-tight">
-                Children In Gaza
-              </h3>
-              <p className="text-[14px] text-black/60">The Palestine NGO</p>
-            </div>
-          </div>
-          <div className="rounded-3xl p-4 hover:border hover:border-black/10 transition-colors">
-            <div className="rounded-2xl bg-[#eeeeee]">
-              <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center">
-                <img
-                  src={Causeimg}
-                  alt="Cause"
-                  className="w-[85%] h-[85%] object-contain"
-                />
-              </div>
-            </div>
-            <div className="mt-4">
-              <h3 className="text-[22px] font-semibold leading-tight">
-                Children In Gaza
-              </h3>
-              <p className="text-[14px] text-black/60">The Palestine NGO</p>
-            </div>
-          </div>
-          <div className="rounded-3xl p-4 hover:border hover:border-black/10 transition-colors">
-            <div className="rounded-2xl bg-[#eeeeee]">
-              <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center">
-                <img
-                  src={Causeimg}
-                  alt="Cause"
-                  className="w-[85%] h-[85%] object-contain"
-                />
-              </div>
-            </div>
-            <div className="mt-4">
-              <h3 className="text-[22px] font-semibold leading-tight">
-                Children In Gaza
-              </h3>
-              <p className="text-[14px] text-black/60">The Palestine NGO</p>
-            </div>
-          </div>
+          {causes.map((cause) => (
+            <CauseCard
+              key={cause.id}
+              image={cause.image}
+              title={cause.title}
+              organization={cause.organization}
+              alt={cause.title}
+            />
+          ))}
         </div>
       </section>
 
@@ -342,96 +192,17 @@ const Home = () => {
           Special Collections
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-          <div className="rounded-3xl p-4 hover:border hover:border-black/10 transition-colors">
-            <div className="rounded-2xl bg-[#eeeeee]">
-              <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center">
-                <img
-                  src={Clothimg}
-                  alt="Cloth"
-                  className="w-[85%] h-[85%] object-contain"
-                />
-              </div>
-            </div>
-            <div className="mt-4">
-              <h3 className="text-[22px] font-semibold leading-tight">
-                Live In Balance
-              </h3>
-              <p className="text-[14px] text-black/60">By OluwaDayo</p>
-              <p className="mt-3 text-[22px] font-semibold">₦20,000</p>
-            </div>
-          </div>
-          <div className="rounded-3xl p-4 hover:border hover:border-black/10 transition-colors">
-            <div className="rounded-2xl bg-[#eeeeee]">
-              <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center">
-                <img
-                  src={Clothimg}
-                  alt="Cloth"
-                  className="w-[85%] h-[85%] object-contain"
-                />
-              </div>
-            </div>
-            <div className="mt-4">
-              <h3 className="text-[22px] font-semibold leading-tight">
-                Live In Balance
-              </h3>
-              <p className="text-[14px] text-black/60">By OluwaDayo</p>
-              <p className="mt-3 text-[22px] font-semibold">₦20,000</p>
-            </div>
-          </div>
-          <div className="rounded-3xl p-4 hover:border hover:border-black/10 transition-colors">
-            <div className="rounded-2xl bg-[#eeeeee]">
-              <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center">
-                <img
-                  src={Clothimg}
-                  alt="Cloth"
-                  className="w-[85%] h-[85%] object-contain"
-                />
-              </div>
-            </div>
-            <div className="mt-4">
-              <h3 className="text-[22px] font-semibold leading-tight">
-                Live In Balance
-              </h3>
-              <p className="text-[14px] text-black/60">By OluwaDayo</p>
-              <p className="mt-3 text-[22px] font-semibold">₦20,000</p>
-            </div>
-          </div>
-          <div className="rounded-3xl p-4 hover:border hover:border-black/10 transition-colors">
-            <div className="rounded-2xl bg-[#eeeeee]">
-              <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center">
-                <img
-                  src={Clothimg}
-                  alt="Cloth"
-                  className="w-[85%] h-[85%] object-contain"
-                />
-              </div>
-            </div>
-            <div className="mt-4">
-              <h3 className="text-[22px] font-semibold leading-tight">
-                Live In Balance
-              </h3>
-              <p className="text-[14px] text-black/60">By OluwaDayo</p>
-              <p className="mt-3 text-[22px] font-semibold">₦20,000</p>
-            </div>
-          </div>
-          <div className="rounded-3xl p-4 hover:border hover:border-black/10 transition-colors">
-            <div className="rounded-2xl bg-[#eeeeee]">
-              <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center">
-                <img
-                  src={Clothimg}
-                  alt="Cloth"
-                  className="w-[85%] h-[85%] object-contain"
-                />
-              </div>
-            </div>
-            <div className="mt-4">
-              <h3 className="text-[22px] font-semibold leading-tight">
-                Live In Balance
-              </h3>
-              <p className="text-[14px] text-black/60">By OluwaDayo</p>
-              <p className="mt-3 text-[22px] font-semibold">₦20,000</p>
-            </div>
-          </div>
+          {products.slice(0, 5).map((product) => (
+            <ProductCard
+              key={`special-${product.id}`}
+              image={product.image}
+              title={product.title}
+              creator={product.creator}
+              price={product.price}
+              alt={product.title}
+              onClick={() => navigate(`/product/${product.id}`)}
+            />
+          ))}
         </div>
       </section>
 
@@ -490,53 +261,16 @@ const Home = () => {
       {/* Creators Section */}
       <section className="px-4 md:px-7 py-12">
           <h2 className="text-3xl md:text-5xl font-semibold tracking-tight mb-8">Check Out Your Creators</h2>
-           <div className="flex flex-wrap  gap-6">
-              <div className="rounded-3xl p-4 hover:border hover:border-black/10 transition-colors text-center">
-                   <div className="rounded-full bg-[#eeeeee] w-32 h-32 lg:w-[250px] lg:h-[250px] mx-auto flex items-center justify-center">
-                      <img src={Clothimg} alt="Creator" className="w-[85%] h-[85%] object-contain rounded-full" />
-                  </div>
-                  <div className="mt-4">
-                      <h3 className="text-[22px] font-semibold leading-tight">OluwaDayo</h3>
-                      <p className="text-[14px] text-black/60">Creator</p>
-                  </div>
-              </div>
-              <div className="rounded-3xl p-4 hover:border hover:border-black/10 transition-colors text-center">
-                   <div className="rounded-full bg-[#eeeeee] w-32 h-32 lg:w-[250px] lg:h-[250px] mx-auto flex items-center justify-center">
-                      <img src={Clothimg} alt="Creator" className="w-[85%] h-[85%] object-contain rounded-full" />
-                  </div>
-                  <div className="mt-4">
-                      <h3 className="text-[22px] font-semibold leading-tight">Sarah Johnson</h3>
-                      <p className="text-[14px] text-black/60">Creator</p>
-                  </div>
-              </div>
-              
-              <div className="rounded-3xl p-4 hover:border hover:border-black/10 transition-colors text-center">
-                   <div className="rounded-full bg-[#eeeeee] w-32 h-32 lg:w-[250px] lg:h-[250px] mx-auto flex items-center justify-center">
-                      <img src={Clothimg} alt="Creator" className="w-[85%] h-[85%] object-contain rounded-full" />
-                  </div>
-                  <div className="mt-4">
-                      <h3 className="text-[22px] font-semibold leading-tight">Sarah Johnson</h3>
-                      <p className="text-[14px] text-black/60">Creator</p>
-                  </div>
-              </div>
-              <div className="rounded-3xl p-4 hover:border hover:border-black/10 transition-colors text-center">
-                   <div className="rounded-full bg-[#eeeeee] w-32 h-32 lg:w-[250px] lg:h-[250px] mx-auto flex items-center justify-center">
-                      <img src={Clothimg} alt="Creator" className="w-[85%] h-[85%] object-contain rounded-full" />
-                  </div>
-                  <div className="mt-4">
-                      <h3 className="text-[22px] font-semibold leading-tight">Mike Chen</h3>
-                      <p className="text-[14px] text-black/60">Creator</p>
-                  </div>
-              </div>
-              <div className="rounded-3xl p-4 hover:border hover:border-black/10 transition-colors text-center">
-                   <div className="rounded-full bg-[#eeeeee] w-32 h-32 lg:w-[250px] lg:h-[250px] mx-auto flex items-center justify-center">
-                      <img src={Clothimg} alt="Creator" className="w-[85%] h-[85%] object-contain rounded-full" />
-                  </div>
-                  <div className="mt-4">
-                      <h3 className="text-[22px] font-semibold leading-tight">Emma Rodriguez</h3>
-                      <p className="text-[14px] text-black/60">Creator</p>
-                  </div>
-              </div>
+           <div className="flex flex-wrap gap-6">
+              {creators.map((creator) => (
+                <CreatorCard
+                  key={creator.id}
+                  image={creator.image}
+                  name={creator.name}
+                  role={creator.role}
+                  alt={creator.name}
+                />
+              ))}
           </div>
       </section>
 
@@ -547,96 +281,17 @@ const Home = () => {
           Shoes Collections
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-          <div className="rounded-3xl p-4 hover:border hover:border-black/10 transition-colors">
-            <div className="rounded-2xl bg-[#eeeeee]">
-              <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center">
-                <img
-                  src={Clothimg}
-                  alt="Cloth"
-                  className="w-[85%] h-[85%] object-contain"
-                />
-              </div>
-            </div>
-            <div className="mt-4">
-              <h3 className="text-[22px] font-semibold leading-tight">
-                Live In Balance
-              </h3>
-              <p className="text-[14px] text-black/60">By OluwaDayo</p>
-              <p className="mt-3 text-[22px] font-semibold">₦20,000</p>
-            </div>
-          </div>
-          <div className="rounded-3xl p-4 hover:border hover:border-black/10 transition-colors">
-            <div className="rounded-2xl bg-[#eeeeee]">
-              <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center">
-                <img
-                  src={Clothimg}
-                  alt="Cloth"
-                  className="w-[85%] h-[85%] object-contain"
-                />
-              </div>
-            </div>
-            <div className="mt-4">
-              <h3 className="text-[22px] font-semibold leading-tight">
-                Live In Balance
-              </h3>
-              <p className="text-[14px] text-black/60">By OluwaDayo</p>
-              <p className="mt-3 text-[22px] font-semibold">₦20,000</p>
-            </div>
-          </div>
-          <div className="rounded-3xl p-4 hover:border hover:border-black/10 transition-colors">
-            <div className="rounded-2xl bg-[#eeeeee]">
-              <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center">
-                <img
-                  src={Clothimg}
-                  alt="Cloth"
-                  className="w-[85%] h-[85%] object-contain"
-                />
-              </div>
-            </div>
-            <div className="mt-4">
-              <h3 className="text-[22px] font-semibold leading-tight">
-                Live In Balance
-              </h3>
-              <p className="text-[14px] text-black/60">By OluwaDayo</p>
-              <p className="mt-3 text-[22px] font-semibold">₦20,000</p>
-            </div>
-          </div>
-          <div className="rounded-3xl p-4 hover:border hover:border-black/10 transition-colors">
-            <div className="rounded-2xl bg-[#eeeeee]">
-              <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center">
-                <img
-                  src={Clothimg}
-                  alt="Cloth"
-                  className="w-[85%] h-[85%] object-contain"
-                />
-              </div>
-            </div>
-            <div className="mt-4">
-              <h3 className="text-[22px] font-semibold leading-tight">
-                Live In Balance
-              </h3>
-              <p className="text-[14px] text-black/60">By OluwaDayo</p>
-              <p className="mt-3 text-[22px] font-semibold">₦20,000</p>
-            </div>
-          </div>
-          <div className="rounded-3xl p-4 hover:border hover:border-black/10 transition-colors">
-            <div className="rounded-2xl bg-[#eeeeee]">
-              <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center">
-                <img
-                  src={Clothimg}
-                  alt="Cloth"
-                  className="w-[85%] h-[85%] object-contain"
-                />
-              </div>
-            </div>
-            <div className="mt-4">
-              <h3 className="text-[22px] font-semibold leading-tight">
-                Live In Balance
-              </h3>
-              <p className="text-[14px] text-black/60">By OluwaDayo</p>
-              <p className="mt-3 text-[22px] font-semibold">₦20,000</p>
-            </div>
-          </div>
+          {products.slice(0, 5).map((product) => (
+            <ProductCard
+              key={`shoes-${product.id}`}
+              image={product.image}
+              title={product.title}
+              creator={product.creator}
+              price={product.price}
+              alt={product.title}
+              onClick={() => navigate(`/product/${product.id}`)}
+            />
+          ))}
         </div>
       </section>
 

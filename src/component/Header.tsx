@@ -1,15 +1,22 @@
 import { Search, ShoppingBag, ChevronDown, Menu, X, ChevronRight } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Button from './Button'
 import DonateLogo from '../assets/DonateLogo.png'
 
 const Header = () => {
+    const navigate = useNavigate()
     const [isShopOpen, setIsShopOpen] = useState(false)
     const [shopEntered, setShopEntered] = useState(false)
     const [activeNav, setActiveNav] = useState<string>('')
     const [isSearchOpen, setIsSearchOpen] = useState(false)
     const [searchEntered, setSearchEntered] = useState(false)
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
+    const handleShopItemClick = (item: string) => {
+        setIsShopOpen(false)
+        navigate('/shop')
+    }
 
     useEffect(() => {
         if (isShopOpen) {
@@ -32,8 +39,12 @@ const Header = () => {
         <header className="sticky top-0 z-20 w-full bg-white px-4 md:px-7 py-[18px] flex items-center justify-between max-h-24 relative">
             <div className="flex items-center gap-9">
                 <div className="flex items-center gap-[10px]">
-                    <img src={DonateLogo} alt="Donate" className="h-7 w-auto block" />
-                  
+                    <img 
+                        src={DonateLogo} 
+                        alt="Donate" 
+                        className="h-7 w-auto block cursor-pointer " 
+                        onClick={() => navigate('/')}
+                    />
                 </div>
                 <nav className="hidden md:flex items-center gap-9">
                     <button 
@@ -78,6 +89,7 @@ const Header = () => {
                 <button 
                     aria-label="Cart"
                     className="relative z-30 inline-flex items-center justify-center w-9 h-9 rounded-lg bg-transparent border-none text-black cursor-pointer hover:bg-gray-100"
+                    onClick={() => navigate('/cart')}
                 >
                     <ShoppingBag size={22} />
                 </button>
@@ -122,18 +134,18 @@ const Header = () => {
                         <div>
                             <h4 className="text-gray-300 text-lg mb-4">Collections</h4>
                             <ul className="space-y-5 text-xl">
-                                <li>Shirts</li>
-                                <li>Caps</li>
-                                <li>Hoodies</li>
-                                <li>Sweaters</li>
+                                <li><button onClick={() => handleShopItemClick('Shirts')} className="hover:text-gray-300 transition-colors">Shirts</button></li>
+                                <li><button onClick={() => handleShopItemClick('Caps')} className="hover:text-gray-300 transition-colors">Caps</button></li>
+                                <li><button onClick={() => handleShopItemClick('Hoodies')} className="hover:text-gray-300 transition-colors">Hoodies</button></li>
+                                <li><button onClick={() => handleShopItemClick('Sweaters')} className="hover:text-gray-300 transition-colors">Sweaters</button></li>
                             </ul>
                         </div>
                         <div>
                             <h4 className="text-gray-300 text-lg mb-4">Collections</h4>
                             <ul className="space-y-5 text-xl">
-                                <li>Fundraisers</li>
-                                <li>Bestsellers</li>
-                                <li>Creator’s Choice</li>
+                                <li><button onClick={() => handleShopItemClick('Fundraisers')} className="hover:text-gray-300 transition-colors">Fundraisers</button></li>
+                                <li><button onClick={() => handleShopItemClick('Bestsellers')} className="hover:text-gray-300 transition-colors">Bestsellers</button></li>
+                                <li><button onClick={() => handleShopItemClick('Creator\'s Choice')} className="hover:text-gray-300 transition-colors">Creator's Choice</button></li>
                             </ul>
                         </div>
                     </div>
