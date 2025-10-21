@@ -1,6 +1,6 @@
 import React from 'react'
 
-type ButtonVariant = 'primary' | 'secondary' | 'inactive'
+type ButtonVariant = 'primary' | 'primary-bw' | 'secondary' | 'inactive'
 type ButtonSize = 'sm' | 'md' | 'lg'
 
 type ButtonProps = {
@@ -14,6 +14,7 @@ const baseStyles = 'inline-flex items-center justify-center rounded-full font-se
 
 const variantStyles: Record<ButtonVariant, string> = {
     primary: 'bg-black text-yellow-400 hover:bg-black/90 focus:ring-black',
+    'primary-bw': 'bg-black text-white hover:bg-gray-800 focus:ring-black',
     secondary: 'bg-white text-black border border-gray-300 hover:bg-gray-100 focus:ring-gray-300',
     inactive: 'bg-gray-200 text-gray-500',
 }

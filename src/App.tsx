@@ -4,18 +4,23 @@ import Shop from './pages/Shop'
 import ProductPage from './pages/ProductPage'
 import Cart from './pages/Cart'
 import ScrollToTop from './component/ScrollToTop'
+import { CartProvider } from './context/CartContext'
+import Checkout from './pages/Checkout'
 
 const App = () => {
     return (
-        <Router>
-            <ScrollToTop />
-            <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/shop" element={<Shop />} />
-                <Route path="/product/:id" element={<ProductPage />} />
-                <Route path="/cart" element={<Cart />} />
-            </Routes>
-        </Router>
+        <CartProvider>
+            <Router>
+                <ScrollToTop />
+                <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/shop" element={<Shop />} />
+                    <Route path="/product/:id" element={<ProductPage />} />
+                    <Route path="/cart" element={<Cart />} />
+                    <Route path="/checkout" element={<Checkout />} />
+                </Routes>
+            </Router>
+        </CartProvider>
     )
 }
 

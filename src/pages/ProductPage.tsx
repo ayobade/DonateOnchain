@@ -6,12 +6,16 @@ import Banner from '../component/Banner'
 import ProductCard from '../component/ProductCard'
 import { products } from '../data/databank'
 import { ChevronDown } from 'lucide-react'
+import { useCart } from '../context/CartContext'
 
 const ProductPage = () => {
     const { id } = useParams<{ id: string }>()
     const navigate = useNavigate()
     const [selectedSize, setSelectedSize] = useState<string>('')
+    const [selectedQuantity, setSelectedQuantity] = useState<number>(1)
     const [openAccordion, setOpenAccordion] = useState<string | null>(null)
+    const [showSuccessMessage, setShowSuccessMessage] = useState<boolean>(false)
+    const { addToCart } = useCart()
 
   
     const product = products.find(p => p.id === parseInt(id || '1'))
@@ -40,9 +44,33 @@ const ProductPage = () => {
         setOpenAccordion(openAccordion === section ? null : section)
     }
 
+    const handleAddToCart = () => {
+        if (selectedSize && product) {
+            // Add the selected quantity to cart
+            for (let i = 0; i < selectedQuantity; i++) {
+                addToCart(product.id, selectedSize, product.color)
+            }
+            setShowSuccessMessage(true)
+            // Hide success message after 3 seconds
+            setTimeout(() => {
+                setShowSuccessMessage(false)
+            }, 3000)
+        }
+    }
+
     return (
         <div>
             <Header />
+            
+            {/* Success Message */}
+            {showSuccessMessage && (
+                <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-pulse">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="font-medium">You added {selectedQuantity} item{selectedQuantity > 1 ? 's' : ''} to cart!</span>
+                </div>
+            )}
             
             {/* Product Detail Section */}
             <section className="px-4 md:px-7 py-12">
@@ -100,9 +128,38 @@ const ProductPage = () => {
                                 </div>
                             </div>
 
+                            {/* Quantity selector */}
+                            <div className="mb-8">
+                                <label className="block text-sm font-medium text-black mb-3">
+                                    Quantity
+                                </label>
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={() => setSelectedQuantity(Math.max(1, selectedQuantity - 1))}
+                                        className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center text-white hover:bg-red-600 transition-colors"
+                                    >
+                                        <span className="text-base">-</span>
+                                    </button>
+                                    <input
+                                        type="number"
+                                        value={selectedQuantity}
+                                        onChange={(e) => setSelectedQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                                        className="w-16 h-10 border border-gray-300 rounded text-center text-sm"
+                                        min="1"
+                                    />
+                                    <button
+                                        onClick={() => setSelectedQuantity(selectedQuantity + 1)}
+                                        className="w-10 h-10 rounded-full bg-black flex items-center justify-center text-white hover:bg-gray-800 transition-colors"
+                                    >
+                                        <span className="text-base">+</span>
+                                    </button>
+                                </div>
+                            </div>
+
                            
                             <button 
-                                className="w-full bg-black text-white py-4 px-6 rounded-lg font-semibold text-lg hover:bg-gray-800 transition-colors mb-8"
+                                onClick={handleAddToCart}
+                                className="w-full bg-black text-white py-4 px-6 rounded-lg font-semibold text-lg hover:bg-gray-800 transition-colors mb-8 disabled:bg-gray-400 disabled:cursor-not-allowed"
                                 disabled={!selectedSize}
                             >
                                 Add to cart

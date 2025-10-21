@@ -3,9 +3,11 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Button from './Button'
 import DonateLogo from '../assets/DonateLogo.png'
+import { useCart } from '../context/CartContext'
 
 const Header = () => {
     const navigate = useNavigate()
+    const { getCartItemCount } = useCart()
     const [isShopOpen, setIsShopOpen] = useState(false)
     const [shopEntered, setShopEntered] = useState(false)
     const [activeNav, setActiveNav] = useState<string>('')
@@ -92,6 +94,11 @@ const Header = () => {
                     onClick={() => navigate('/cart')}
                 >
                     <ShoppingBag size={22} />
+                    {getCartItemCount() > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                            {getCartItemCount()}
+                        </span>
+                    )}
                 </button>
                 <div className="relative z-30 hidden md:block">
                     <Button variant="primary" size="md">Connect Wallet</Button>
