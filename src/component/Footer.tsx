@@ -30,7 +30,7 @@ const Footer = () => {
                         <ul className="space-y-3 text-sm text-black/80">
                             <li>How it works</li>
                             <li>Campaigns</li>
-                            <li>Become and NGO</li>
+                            <li>Become an NGO</li>
                         </ul>
                     </div>
                     </div>

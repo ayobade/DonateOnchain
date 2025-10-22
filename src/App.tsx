@@ -6,6 +6,7 @@ import Cart from './pages/Cart'
 import ScrollToTop from './component/ScrollToTop'
 import { CartProvider } from './context/CartContext'
 import Checkout from './pages/Checkout'
+import UserProfile from './pages/UserProfile'
 
 const App = () => {
     return (
@@ -18,6 +19,7 @@ const App = () => {
                     <Route path="/product/:id" element={<ProductPage />} />
                     <Route path="/cart" element={<Cart />} />
                     <Route path="/checkout" element={<Checkout />} />
+                    <Route path="/user-profile" element={<UserProfile />} />
                 </Routes>
             </Router>
         </CartProvider>

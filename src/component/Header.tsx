@@ -1,9 +1,10 @@
-import { Search, ShoppingBag, ChevronDown, Menu, X, ChevronRight } from 'lucide-react'
+import { Search, ShoppingBag, ChevronDown, Menu, X, ChevronRight, User, Package, LogOut } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Button from './Button'
 import DonateLogo from '../assets/DonateLogo.png'
 import { useCart } from '../context/CartContext'
+import { products } from '../data/databank'
 
 const Header = () => {
     const navigate = useNavigate()
@@ -12,12 +13,60 @@ const Header = () => {
     const [shopEntered, setShopEntered] = useState(false)
     const [activeNav, setActiveNav] = useState<string>('')
     const [isSearchOpen, setIsSearchOpen] = useState(false)
-    const [searchEntered, setSearchEntered] = useState(false)
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+    const [isMobileShopOpen, setIsMobileShopOpen] = useState(false)
+    const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
+    const [searchQuery, setSearchQuery] = useState('')
+    const [searchResults, setSearchResults] = useState<any[]>([])
 
-    const handleShopItemClick = (item: string) => {
+    const handleShopItemClick = () => {
         setIsShopOpen(false)
         navigate('/shop')
+    }
+
+    const handleSearch = (query: string) => {
+        setSearchQuery(query)
+        if (query.trim() === '') {
+            setSearchResults([])
+            return
+        }
+        
+        const results = products.filter(product => 
+            product.title.toLowerCase().includes(query.toLowerCase()) ||
+            product.creator.toLowerCase().includes(query.toLowerCase()) ||
+            product.category.toLowerCase().includes(query.toLowerCase())
+        )
+        setSearchResults(results)
+    }
+
+    const handleSearchResultClick = (productId: number) => {
+        setIsSearchOpen(false)
+        setSearchQuery('')
+        setSearchResults([])
+        navigate(`/product/${productId}`)
+    }
+
+    const handleAccountMenuClick = () => {
+        setIsAccountMenuOpen(!isAccountMenuOpen)
+        setIsShopOpen(false)
+        setIsSearchOpen(false)
+    }
+
+    const handleProfileClick = () => {
+        setIsAccountMenuOpen(false)
+        navigate('/user-profile')
+    }
+
+    const handleOrdersClick = () => {
+        setIsAccountMenuOpen(false)
+        
+        console.log('Navigate to orders')
+    }
+
+    const handleSignOutClick = () => {
+        setIsAccountMenuOpen(false)
+        
+        console.log('Sign out')
     }
 
     useEffect(() => {
@@ -28,17 +77,30 @@ const Header = () => {
             setShopEntered(false)
         }
     }, [isShopOpen])
-    
+
     useEffect(() => {
         if (isSearchOpen) {
-            const id = requestAnimationFrame(() => setSearchEntered(true))
-            return () => cancelAnimationFrame(id)
+            document.body.style.overflow = 'hidden'
         } else {
-            setSearchEntered(false)
+            document.body.style.overflow = 'unset'
+        }
+        
+        return () => {
+            document.body.style.overflow = 'unset'
         }
     }, [isSearchOpen])
+
+    useEffect(() => {
+       
+        document.body.style.paddingTop = '72px' 
+        
+        return () => {
+            document.body.style.paddingTop = '0'
+        }
+    }, [])
+
     return (
-        <header className="sticky top-0 z-20 w-full bg-white px-4 md:px-7 py-[18px] flex items-center justify-between max-h-24 relative">
+        <header className="fixed top-0 left-0 right-0 z-20 w-full bg-white px-4 md:px-7 py-[18px] flex items-center justify-between max-h-24">
             <div className="flex items-center gap-9">
                 <div className="flex items-center gap-[10px]">
                     <img 
@@ -50,7 +112,7 @@ const Header = () => {
                 </div>
                 <nav className="hidden md:flex items-center gap-9">
                     <button 
-                        className={`inline-flex items-center gap-[6px] text-xl text-black bg-transparent pb-1 cursor-pointer hover:opacity-80 border-b-2 transition-colors ${isShopOpen ? 'border-black' : 'border-transparent hover:border-black'}`}
+                        className={`inline-flex items-center gap-[6px] text-base text-black bg-transparent pb-1 cursor-pointer hover:opacity-80 border-b-2 transition-colors ${isShopOpen ? 'border-black' : 'border-transparent hover:border-black'}`}
                         onClick={() => { setIsShopOpen((v) => !v); setActiveNav('') }}
                         aria-expanded={isShopOpen}
                         aria-haspopup="true"
@@ -59,19 +121,19 @@ const Header = () => {
                         <ChevronDown size={18} />
                     </button>
                     <button 
-                        className={`inline-flex items-center gap-[6px] text-xl text-black bg-transparent pb-1 cursor-pointer hover:opacity-80 border-b-2 transition-colors ${activeNav==='How' ? 'border-black' : 'border-transparent hover:border-black'}`}
+                        className={`inline-flex items-center gap-[6px] text-base text-black bg-transparent pb-1 cursor-pointer hover:opacity-80 border-b-2 transition-colors ${activeNav==='How' ? 'border-black' : 'border-transparent hover:border-black'}`}
                         onClick={() => { setActiveNav('How'); setIsShopOpen(false); }}
                     >
                         How It Works
                     </button>
                     <button 
-                        className={`inline-flex items-center gap-[6px] text-xl text-black bg-transparent pb-1 cursor-pointer hover:opacity-80 border-b-2 transition-colors ${activeNav==='Campaigns' ? 'border-black' : 'border-transparent hover:border-black'}`}
+                        className={`inline-flex items-center gap-[6px] text-base text-black bg-transparent pb-1 cursor-pointer hover:opacity-80 border-b-2 transition-colors ${activeNav==='Campaigns' ? 'border-black' : 'border-transparent hover:border-black'}`}
                         onClick={() => { setActiveNav('Campaigns'); setIsShopOpen(false); }}
                     >
                         Campaigns
                     </button>
                     <button 
-                        className={`inline-flex items-center gap-[6px] text-xl text-black bg-transparent pb-1 cursor-pointer hover:opacity-80 border-b-2 transition-colors ${activeNav==='Customize' ? 'border-black' : 'border-transparent hover:border-black'}`}
+                        className={`inline-flex items-center gap-[6px] text-base text-black bg-transparent pb-1 cursor-pointer hover:opacity-80 border-b-2 transition-colors ${activeNav==='Customize' ? 'border-black' : 'border-transparent hover:border-black'}`}
                         onClick={() => { setActiveNav('Customize'); setIsShopOpen(false); }}
                     >
                         Customize
@@ -101,7 +163,13 @@ const Header = () => {
                     )}
                 </button>
                 <div className="relative z-30 hidden md:block">
-                    <Button variant="primary" size="md">Connect Wallet</Button>
+                    <Button 
+                        variant="primary" 
+                        size="md"
+                        onClick={handleAccountMenuClick}
+                    >
+                        Account
+                    </Button>
                 </div>
 
                 <button 
@@ -115,19 +183,56 @@ const Header = () => {
             </div>
 
      
-            {isSearchOpen && <div className="fixed inset-0 z-10" onClick={() => setIsSearchOpen(false)} />}
+            {isSearchOpen && <div className="fixed inset-x-0 top-20 bottom-0 z-10 bg-black bg-opacity-20 backdrop-blur-sm" onClick={() => setIsSearchOpen(false)} />}
            
-            {(
-                <div className={`absolute left-1/2 top-full mt-3 -translate-x-1/2 z-20 bg-[#d6d6d6] text-black rounded-full shadow-md overflow-hidden transition-all duration-200 ease-in ${searchEntered ? 'opacity-100 w-[640px] h-14' : 'opacity-0 w-0 h-14'} max-w-[calc(100vw-56px)]`}> 
-                    <div className="relative h-14 flex items-center justify-center pl-14 pr-14">
-                        <Search size={20} className="absolute left-5 text-black" />
+            {isSearchOpen && (
+                <div className="absolute left-1/2 top-full mt-3 -translate-x-1/2 z-20 bg-white text-black rounded-lg shadow-xl w-[640px] max-w-[calc(100vw-56px)] overflow-hidden">
+                    <div className="relative h-14 flex items-center justify-center pl-14 pr-14 border-b border-gray-200">
+                        <Search size={20} className="absolute left-5 text-gray-500" />
                         <input 
                             type="text" 
                             placeholder="What Are You Searching For" 
-                            className="w-full bg-transparent text-center text-black placeholder-black/70 text-[16px] outline-none"
+                            value={searchQuery}
+                            onChange={(e) => handleSearch(e.target.value)}
+                            className="w-full bg-transparent text-center text-black placeholder-gray-500 text-[16px] outline-none"
                             autoFocus={isSearchOpen}
                         />
                     </div>
+                    
+                   
+                    {searchResults.length > 0 && (
+                        <div className="max-h-80 overflow-y-auto">
+                            {searchResults.map((product) => (
+                                <div 
+                                    key={product.id}
+                                    className="flex items-center gap-4 p-4 hover:bg-gray-50 cursor-pointer border-b border-gray-100"
+                                    onClick={() => handleSearchResultClick(product.id)}
+                                >
+                                    <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                                        <img 
+                                            src={product.image} 
+                                            alt={product.title}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="font-medium text-black">{product.title}</h3>
+                                        <p className="text-sm text-gray-600">By {product.creator}</p>
+                                        <p className="text-sm text-gray-500">{product.category}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="font-medium text-black">{product.price}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    
+                    {searchQuery && searchResults.length === 0 && (
+                        <div className="p-4 text-center text-gray-500">
+                            No products found for "{searchQuery}"
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -141,18 +246,18 @@ const Header = () => {
                         <div>
                             <h4 className="text-gray-300 text-lg mb-4">Collections</h4>
                             <ul className="space-y-5 text-xl">
-                                <li><button onClick={() => handleShopItemClick('Shirts')} className="hover:text-gray-300 transition-colors">Shirts</button></li>
-                                <li><button onClick={() => handleShopItemClick('Caps')} className="hover:text-gray-300 transition-colors">Caps</button></li>
-                                <li><button onClick={() => handleShopItemClick('Hoodies')} className="hover:text-gray-300 transition-colors">Hoodies</button></li>
-                                <li><button onClick={() => handleShopItemClick('Sweaters')} className="hover:text-gray-300 transition-colors">Sweaters</button></li>
+                                <li><button onClick={() => handleShopItemClick()} className="hover:text-gray-300 transition-colors">Shirts</button></li>
+                                <li><button onClick={() => handleShopItemClick()} className="hover:text-gray-300 transition-colors">Caps</button></li>
+                                <li><button onClick={() => handleShopItemClick()} className="hover:text-gray-300 transition-colors">Hoodies</button></li>
+                                <li><button onClick={() => handleShopItemClick()} className="hover:text-gray-300 transition-colors">Sweaters</button></li>
                             </ul>
                         </div>
                         <div>
                             <h4 className="text-gray-300 text-lg mb-4">Collections</h4>
                             <ul className="space-y-5 text-xl">
-                                <li><button onClick={() => handleShopItemClick('Fundraisers')} className="hover:text-gray-300 transition-colors">Fundraisers</button></li>
-                                <li><button onClick={() => handleShopItemClick('Bestsellers')} className="hover:text-gray-300 transition-colors">Bestsellers</button></li>
-                                <li><button onClick={() => handleShopItemClick('Creator\'s Choice')} className="hover:text-gray-300 transition-colors">Creator's Choice</button></li>
+                                <li><button onClick={() => handleShopItemClick()} className="hover:text-gray-300 transition-colors">Fundraisers</button></li>
+                                <li><button onClick={() => handleShopItemClick()} className="hover:text-gray-300 transition-colors">Bestsellers</button></li>
+                                <li><button onClick={() => handleShopItemClick()} className="hover:text-gray-300 transition-colors">Creator's Choice</button></li>
                             </ul>
                         </div>
                     </div>
@@ -166,10 +271,33 @@ const Header = () => {
                     <div className="absolute left-0 top-full z-20 w-full bg-white text-black px-4 py-6 shadow-xl md:hidden">
                         <ul className="divide-y divide-black/10 text-xl">
                             <li>
-                                <button className="w-full flex items-center justify-between py-5" onClick={() => { setIsMobileMenuOpen(false); setActiveNav('Shop') }}>
+                                <button className="w-full flex items-center justify-between py-5" onClick={() => setIsMobileShopOpen(!isMobileShopOpen)}>
                                     <span>Shop</span>
-                                    <ChevronRight size={18} />
+                                    <ChevronRight size={18} className={`transition-transform ${isMobileShopOpen ? 'rotate-90' : ''}`} />
                                 </button>
+                                {isMobileShopOpen && (
+                                    <div className="pl-4 pb-4">
+                                        <div className="grid grid-cols-1 gap-4">
+                                            <div>
+                                                <h4 className="text-gray-500 text-sm mb-2 font-medium">Collections</h4>
+                                                <ul className="space-y-2 text-base">
+                                                    <li><button onClick={() => handleShopItemClick()} className="hover:text-gray-600 transition-colors">Shirts</button></li>
+                                                    <li><button onClick={() => handleShopItemClick()} className="hover:text-gray-600 transition-colors">Caps</button></li>
+                                                    <li><button onClick={() => handleShopItemClick()} className="hover:text-gray-600 transition-colors">Hoodies</button></li>
+                                                    <li><button onClick={() => handleShopItemClick()} className="hover:text-gray-600 transition-colors">Sweaters</button></li>
+                                                </ul>
+                                            </div>
+                                            <div>
+                                                <h4 className="text-gray-500 text-sm mb-2 font-medium">Categories</h4>
+                                                <ul className="space-y-2 text-base">
+                                                    <li><button onClick={() => handleShopItemClick()} className="hover:text-gray-600 transition-colors">Fundraisers</button></li>
+                                                    <li><button onClick={() => handleShopItemClick()} className="hover:text-gray-600 transition-colors">Bestsellers</button></li>
+                                                    <li><button onClick={() => handleShopItemClick()} className="hover:text-gray-600 transition-colors">Creator's Choice</button></li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </li>
                             <li>
                                 <button className="w-full flex items-center justify-between py-5" onClick={() => { setIsMobileMenuOpen(false); setActiveNav('How') }}>
@@ -189,7 +317,47 @@ const Header = () => {
                             </li>
                         </ul>
                         <div className="pt-6">
-                            <Button variant="primary" size="md" className="w-full justify-center">Connect Wallet</Button>
+                            <Button 
+                                variant="primary" 
+                                size="md" 
+                                className="w-full justify-center"
+                                onClick={handleAccountMenuClick}
+                            >
+                                Account
+                            </Button>
+                        </div>
+                    </div>
+                </>
+            )}
+
+            {/* Account Menu Overlay */}
+            {isAccountMenuOpen && (
+                <>
+                    <div className="fixed inset-0 z-10" onClick={() => setIsAccountMenuOpen(false)} />
+                    <div className="absolute right-0 top-full mt-3 z-20 bg-white text-black rounded-lg shadow-xl w-48 border border-gray-200">
+                        <div className="py-2">
+                            <button 
+                                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                                onClick={handleProfileClick}
+                            >
+                                <User size={18} className="text-gray-600" />
+                                <span className="text-sm font-medium">Profile</span>
+                            </button>
+                            <button 
+                                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                                onClick={handleOrdersClick}
+                            >
+                                <Package size={18} className="text-gray-600" />
+                                <span className="text-sm font-medium">Orders</span>
+                            </button>
+                            <hr className="my-1 border-gray-200" />
+                            <button 
+                                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors text-red-600"
+                                onClick={handleSignOutClick}
+                            >
+                                <LogOut size={18} />
+                                <span className="text-sm font-medium">Sign Out</span>
+                            </button>
                         </div>
                     </div>
                 </>

@@ -6,13 +6,14 @@ import Banner from '../component/Banner'
 import ProductCard from '../component/ProductCard'
 import FilterButton from '../component/FilterButton'
 import ShopImg from '../assets/ShopImg.png'
-import { Filter } from 'lucide-react'
+import { Filter, ChevronDown } from 'lucide-react'
 import { products } from '../data/databank'
 
 const Shop = () => {
     const navigate = useNavigate()
     const [isFilterOpen, setIsFilterOpen] = useState(false)
     const [filterEntered, setFilterEntered] = useState(false)
+    const [isMobileCategoryOpen, setIsMobileCategoryOpen] = useState(false)
     const [activeCategory, setActiveCategory] = useState('all')
     const [filters, setFilters] = useState<{
         priceRange: string[]
@@ -27,6 +28,22 @@ const Shop = () => {
     const [filteredProducts, setFilteredProducts] = useState<any[]>([])
     
 
+    const getCategoryDisplayName = (category: string) => {
+        switch (category) {
+            case 'all': return 'All'
+            case 'fundraisers': return 'Fundraisers'
+            case 'bestsellers': return 'Bestsellers'
+            case 'creators-choice': return "Creator's Choice"
+            default: return 'All'
+        }
+    }
+
+    const categories = [
+        { value: 'all', label: 'All' },
+        { value: 'fundraisers', label: 'Fundraisers' },
+        { value: 'bestsellers', label: 'Bestsellers' },
+        { value: 'creators-choice', label: "Creator's Choice" }
+    ]
 
   
      const getPriceRange = (priceString: string) => {
@@ -170,30 +187,67 @@ const Shop = () => {
             <section className="px-4 md:px-7 py-8">
                
                 <div className="flex items-center gap-4 mb-8">
-                    <FilterButton 
-                        isActive={activeCategory === 'all'}
-                        onClick={() => handleCategoryClick('all')}
-                    >
-                        All
-                    </FilterButton>
-                    <FilterButton 
-                        isActive={activeCategory === 'fundraisers'}
-                        onClick={() => handleCategoryClick('fundraisers')}
-                    >
-                        Fundraisers
-                    </FilterButton>
-                    <FilterButton 
-                        isActive={activeCategory === 'bestsellers'}
-                        onClick={() => handleCategoryClick('bestsellers')}
-                    >
-                        Bestsellers
-                    </FilterButton>
-                    <FilterButton 
-                        isActive={activeCategory === 'creators-choice'}
-                        onClick={() => handleCategoryClick('creators-choice')}
-                    >
-                        Creator's Choice
-                    </FilterButton>
+                    {/* Desktop Category Buttons */}
+                    <div className="hidden md:flex items-center gap-4">
+                        <FilterButton 
+                            isActive={activeCategory === 'all'}
+                            onClick={() => handleCategoryClick('all')}
+                        >
+                            All
+                        </FilterButton>
+                        <FilterButton 
+                            isActive={activeCategory === 'fundraisers'}
+                            onClick={() => handleCategoryClick('fundraisers')}
+                        >
+                            Fundraisers
+                        </FilterButton>
+                        <FilterButton 
+                            isActive={activeCategory === 'bestsellers'}
+                            onClick={() => handleCategoryClick('bestsellers')}
+                        >
+                            Bestsellers
+                        </FilterButton>
+                        <FilterButton 
+                            isActive={activeCategory === 'creators-choice'}
+                            onClick={() => handleCategoryClick('creators-choice')}
+                        >
+                            Creator's Choice
+                        </FilterButton>
+                    </div>
+
+                 
+                    <div className="md:hidden relative w-full max-w-[200px]">
+                        <button 
+                            className="flex items-center justify-between w-full bg-white border border-gray-300 rounded-lg px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                            onClick={() => setIsMobileCategoryOpen(!isMobileCategoryOpen)}
+                        >
+                            <span className="text-base font-medium">{getCategoryDisplayName(activeCategory)}</span>
+                            <ChevronDown size={20} className={`transition-transform ${isMobileCategoryOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        
+                        {isMobileCategoryOpen && (
+                            <>
+                                <div className="fixed inset-0 z-10" onClick={() => setIsMobileCategoryOpen(false)} />
+                                <div className="absolute top-full left-0 right-0 z-20 bg-white border border-gray-300 rounded-lg shadow-lg mt-1 overflow-hidden">
+                                    {categories.map((category) => (
+                                        <button
+                                            key={category.value}
+                                            className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${
+                                                activeCategory === category.value ? 'bg-gray-100 font-medium' : ''
+                                            }`}
+                                            onClick={() => {
+                                                handleCategoryClick(category.value)
+                                                setIsMobileCategoryOpen(false)
+                                            }}
+                                        >
+                                            {category.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </>
+                        )}
+                    </div>
+
                     <div className="relative ml-auto">
                         <FilterButton 
                             isActive={isFilterOpen} 
