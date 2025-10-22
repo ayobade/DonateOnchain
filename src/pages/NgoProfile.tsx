@@ -3,7 +3,7 @@ import Footer from "../component/Footer";
 import Button from "../component/Button";
 import NFTcard from "../component/NFTcard";
 import ProductCard from "../component/ProductCard";
-import { Edit, Plus, X, Camera } from "lucide-react";
+import { Plus, X, Camera } from "lucide-react";
 import { useState } from "react";
 import { products } from "../data/databank";
 

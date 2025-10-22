@@ -1,5 +1,4 @@
 import Clothimg from "../assets/Clothimg.png";
-import BannerNft from "../assets/BannerNft.png";
 
 
 const Banner = () => {
