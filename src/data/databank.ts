@@ -164,6 +164,94 @@ export const products: Product[] = [
   }
 ]
 
+export interface Campaign {
+  id: number
+  image: string
+  title: string
+  amountRaised: string
+  goal: string
+  percentage: number
+  category: string
+  about: string
+  howItWorks: string
+  useOfFunds: string
+}
+
+export const campaigns: Campaign[] = [
+  {
+    id: 1,
+    image: Causeimg,
+    title: "Help Feed 3000 Children",
+    amountRaised: "₦1,000,000",
+    goal: "₦2,500,000",
+    percentage: 40,
+    category: "healthcare",
+    about: "The Help Feed 3000 Children campaign was launched to provide nutritious meals to 3000 children across vulnerable communities. Each child receives a balanced meal daily, ensuring they have the energy needed for learning and growth. Your contributions directly fund food supplies, preparation, and distribution to these children.",
+    howItWorks: "Step 1: You donate any amount to the campaign. Step 2: Your donation is tracked and added to our live progress bar. Step 3: Funds are used to purchase and distribute meals. Step 4: You receive updates on the impact of your donation through photos and reports.",
+    useOfFunds: "60% of funds go directly to food supplies (meals, ingredients, and nutrition supplements). 25% covers operational costs (storage, transportation, and distribution). 10% is allocated to staff and volunteers. 5% goes to monitoring and impact assessment to ensure transparency."
+  },
+  {
+    id: 2,
+    image: Causeimg,
+    title: "Build Schools in Rural Areas",
+    amountRaised: "₦500,000",
+    goal: "₦3,000,000",
+    percentage: 17,
+    category: "education",
+    about: "The Build Schools in Rural Areas campaign aims to construct quality educational facilities in underserved rural communities. Each school will provide a safe learning environment for children who currently lack access to proper education infrastructure.",
+    howItWorks: "Step 1: You donate to support school construction. Step 2: Funds are allocated to building materials and construction. Step 3: Schools are built with community involvement. Step 4: Educational facilities are equipped and children begin learning.",
+    useOfFunds: "50% covers construction materials and building costs. 20% goes to furnishing and equipment. 15% covers labor and construction teams. 10% is for community engagement and training. 5% goes to project management and oversight."
+  },
+  {
+    id: 3,
+    image: Causeimg,
+    title: "Plant 10,000 Trees Initiative",
+    amountRaised: "₦750,000",
+    goal: "₦1,500,000",
+    percentage: 50,
+    category: "climate-change",
+    about: "The Plant 10,000 Trees Initiative focuses on reforestation efforts to combat climate change and restore degraded lands. Each tree planted contributes to carbon sequestration, soil conservation, and biodiversity restoration.",
+    howItWorks: "Step 1: You donate to support tree planting. Step 2: Saplings are purchased and prepared. Step 3: Trees are planted in designated areas by volunteers. Step 4: Regular monitoring ensures tree survival and growth.",
+    useOfFunds: "40% goes to purchasing saplings and seeds. 30% covers land preparation and planting activities. 15% is for maintenance and watering. 10% goes to community education and awareness. 5% covers monitoring and evaluation."
+  },
+  {
+    id: 4,
+    image: Causeimg,
+    title: "Medical Supplies for Refugees",
+    amountRaised: "₦1,200,000",
+    goal: "₦2,000,000",
+    percentage: 60,
+    category: "healthcare",
+    about: "The Medical Supplies for Refugees campaign provides essential medical supplies and equipment to refugee camps. This includes medicines, bandages, diagnostic tools, and personal protective equipment to ensure refugees receive proper healthcare.",
+    howItWorks: "Step 1: You donate to support medical supply procurement. Step 2: Supplies are purchased from verified suppliers. Step 3: Items are distributed to refugee camps and clinics. Step 4: Healthcare workers use supplies to treat patients.",
+    useOfFunds: "55% goes to purchasing medical supplies and medicines. 20% covers transportation and logistics. 15% goes to training healthcare workers. 7% is for monitoring and quality assurance. 3% covers administrative costs."
+  },
+  {
+    id: 5,
+    image: Causeimg,
+    title: "Digital Learning Centers",
+    amountRaised: "₦900,000",
+    goal: "₦2,500,000",
+    percentage: 36,
+    category: "education",
+    about: "The Digital Learning Centers campaign aims to establish computer labs and digital learning facilities in schools. Students will gain access to technology, internet connectivity, and digital literacy training to prepare them for the digital age.",
+    howItWorks: "Step 1: You donate to support digital infrastructure. Step 2: Equipment including computers and internet are installed. Step 3: Students receive training on digital tools. Step 4: Regular support ensures continued learning opportunities.",
+    useOfFunds: "45% goes to purchasing computers and devices. 25% covers internet connectivity and infrastructure. 15% is for training and curriculum development. 10% goes to maintenance and support. 5% covers project coordination."
+  },
+  {
+    id: 6,
+    image: Causeimg,
+    title: "Clean Water Project",
+    amountRaised: "₦1,500,000",
+    goal: "₦2,000,000",
+    percentage: 75,
+    category: "climate-change",
+    about: "The Clean Water Project provides safe drinking water to communities through well drilling, water purification systems, and water source protection. This ensures communities have access to clean water for drinking, cooking, and sanitation.",
+    howItWorks: "Step 1: You donate to support water infrastructure. Step 2: Wells are drilled and water systems installed. Step 3: Purification systems ensure water quality. Step 4: Communities receive training on water management and maintenance.",
+    useOfFunds: "50% covers drilling and infrastructure installation. 20% goes to water purification systems. 15% is for community training and education. 10% covers maintenance and repairs. 5% goes to water quality testing and monitoring."
+  }
+]
+
 export const causes: Cause[] = [
   {
     id: 1,

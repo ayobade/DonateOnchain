@@ -122,21 +122,21 @@ const Header = () => {
                     </button>
                     <button 
                         className={`inline-flex items-center gap-[6px] text-base text-black bg-transparent pb-1 cursor-pointer hover:opacity-80 border-b-2 transition-colors ${activeNav==='How' ? 'border-black' : 'border-transparent hover:border-black'}`}
-                        onClick={() => { setActiveNav('How'); setIsShopOpen(false); }}
+                        onClick={() => { setActiveNav('How'); setIsShopOpen(false); navigate('/how-it-works'); }}
                     >
                         How It Works
                     </button>
                     <button 
                         className={`inline-flex items-center gap-[6px] text-base text-black bg-transparent pb-1 cursor-pointer hover:opacity-80 border-b-2 transition-colors ${activeNav==='Campaigns' ? 'border-black' : 'border-transparent hover:border-black'}`}
-                        onClick={() => { setActiveNav('Campaigns'); setIsShopOpen(false); }}
+                        onClick={() => { setActiveNav('Campaigns'); setIsShopOpen(false); navigate('/campaign'); }}
                     >
                         Campaigns
                     </button>
                     <button 
                         className={`inline-flex items-center gap-[6px] text-base text-black bg-transparent pb-1 cursor-pointer hover:opacity-80 border-b-2 transition-colors ${activeNav==='Customize' ? 'border-black' : 'border-transparent hover:border-black'}`}
-                        onClick={() => { setActiveNav('Customize'); setIsShopOpen(false); }}
+                        onClick={() => { setActiveNav('Customize'); setIsShopOpen(false); navigate('/become-an-ngo'); }}
                     >
-                        Customize
+                        Become an NGO
                     </button>
                 </nav>
             </div>
@@ -300,19 +300,19 @@ const Header = () => {
                                 )}
                             </li>
                             <li>
-                                <button className="w-full flex items-center justify-between py-5" onClick={() => { setIsMobileMenuOpen(false); setActiveNav('How') }}>
+                                <button className="w-full flex items-center justify-between py-5" onClick={() => { setIsMobileMenuOpen(false); setActiveNav('How'); navigate('/how-it-works'); }}>
                                     <span>How It Works</span>
                                 </button>
                             </li>
                             <li>
-                                <button className="w-full flex items-center justify-between py-5" onClick={() => { setIsMobileMenuOpen(false); setActiveNav('Campaigns') }}>
+                                <button className="w-full flex items-center justify-between py-5" onClick={() => { setIsMobileMenuOpen(false); setActiveNav('Campaigns'); navigate('/campaign'); }}>
                                     <span>Campaigns</span>
                                     
                                 </button>
                             </li>
                             <li>
-                                <button className="w-full flex items-center justify-between py-5" onClick={() => { setIsMobileMenuOpen(false); setActiveNav('Customize') }}>
-                                    <span>Customize</span>
+                                <button className="w-full flex items-center justify-between py-5" onClick={() => { setIsMobileMenuOpen(false); setActiveNav('Customize'); navigate('/become-an-ngo'); }}>
+                                    <span>Become an NGO</span>
                                 </button>
                             </li>
                         </ul>

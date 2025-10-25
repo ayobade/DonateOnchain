@@ -7,6 +7,12 @@ import ScrollToTop from './component/ScrollToTop'
 import { CartProvider } from './context/CartContext'
 import Checkout from './pages/Checkout'
 import UserProfile from './pages/UserProfile'
+import Campaign from './pages/Campaign'
+import CampaignDetails from './pages/CampaignDetails'
+import HowItWorks from './pages/HowItWorks'
+import CreateDesign from './pages/CreateDesign'
+import BecomeanNgo from './pages/BecomeanNgo'
+import NgoProfile from './pages/NgoProfile'
 
 const App = () => {
     return (
@@ -20,6 +26,12 @@ const App = () => {
                     <Route path="/cart" element={<Cart />} />
                     <Route path="/checkout" element={<Checkout />} />
                     <Route path="/user-profile" element={<UserProfile />} />
+                    <Route path="/campaign" element={<Campaign />} />
+                    <Route path="/campaign/:id" element={<CampaignDetails />} />
+                    <Route path="/how-it-works" element={<HowItWorks />} />
+                    <Route path="/create-design" element={<CreateDesign />} />
+                    <Route path="/become-an-ngo" element={<BecomeanNgo />} />
+                    <Route path="/ngo-profile" element={<NgoProfile />} />
                 </Routes>
             </Router>
         </CartProvider>

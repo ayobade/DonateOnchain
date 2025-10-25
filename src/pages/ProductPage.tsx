@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import Header from '../component/Header'
 import Footer from '../component/Footer'
 import Banner from '../component/Banner'
 import ProductCard from '../component/ProductCard'
 import { products } from '../data/databank'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useCart } from '../context/CartContext'
 
 const ProductPage = () => {
@@ -15,10 +15,27 @@ const ProductPage = () => {
     const [selectedQuantity, setSelectedQuantity] = useState<number>(1)
     const [openAccordion, setOpenAccordion] = useState<string | null>(null)
     const [showSuccessMessage, setShowSuccessMessage] = useState<boolean>(false)
+    const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false)
+    const [customDesign, setCustomDesign] = useState<any>(null)
+    const [currentImageView, setCurrentImageView] = useState<'front' | 'back'>('front')
     const { addToCart } = useCart()
 
-  
-    const product = products.find(p => p.id === parseInt(id || '1'))
+    // Check if this is a custom design from localStorage
+    useEffect(() => {
+        if (id) {
+            // Check both user and NGO designs
+            const userDesigns = JSON.parse(localStorage.getItem('userDesigns') || '[]')
+            const ngoDesigns = JSON.parse(localStorage.getItem('ngoDesigns') || '[]')
+            const allDesigns = [...userDesigns, ...ngoDesigns]
+            const foundDesign = allDesigns.find((design: any) => design.id === parseInt(id))
+            if (foundDesign) {
+                setCustomDesign(foundDesign)
+            }
+        }
+    }, [id])
+
+    // Use custom design if found, otherwise use regular product
+    const product = customDesign || products.find(p => p.id === parseInt(id || '1'))
 
     if (!product) {
         return (
@@ -45,10 +62,19 @@ const ProductPage = () => {
     }
 
     const handleAddToCart = () => {
-        if (selectedSize && product) {
-            // Add the selected quantity to cart
+        if (product) {
+            if (customDesign) {
+                // For custom designs, add each selected size as a separate cart item
+                customDesign.sizes.forEach((size: string) => {
+                    for (let i = 0; i < selectedQuantity; i++) {
+                        addToCart(customDesign.id, size, customDesign.color)
+                    }
+                })
+            } else if (selectedSize) {
+                // For regular products, use the selected size
             for (let i = 0; i < selectedQuantity; i++) {
                 addToCart(product.id, selectedSize, product.color)
+                }
             }
             setShowSuccessMessage(true)
             // Hide success message after 3 seconds
@@ -56,6 +82,28 @@ const ProductPage = () => {
                 setShowSuccessMessage(false)
             }, 3000)
         }
+    }
+
+    const handleDeleteClick = () => {
+        setShowDeleteModal(true)
+    }
+
+    const handleConfirmDelete = () => {
+        if (customDesign) {
+            // Determine which storage to use based on design type
+            const storageKey = customDesign.isNgo ? 'ngoDesigns' : 'userDesigns'
+            const existingDesigns = JSON.parse(localStorage.getItem(storageKey) || '[]')
+            const updatedDesigns = existingDesigns.filter((design: any) => design.id !== customDesign.id)
+            localStorage.setItem(storageKey, JSON.stringify(updatedDesigns))
+            
+            // Navigate back to appropriate profile
+            const redirectPath = customDesign.isNgo ? '/ngo-profile' : '/user-profile'
+            navigate(redirectPath)
+        }
+    }
+
+    const handleCancelDelete = () => {
+        setShowDeleteModal(false)
     }
 
     return (
@@ -72,6 +120,33 @@ const ProductPage = () => {
                 </div>
             )}
             
+            {/* Delete Confirmation Modal */}
+            {showDeleteModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-2xl p-8 max-w-md mx-4 text-center">
+                        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Trash2 className="w-8 h-8 text-red-500" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-black mb-2">Delete Design?</h2>
+                        <p className="text-gray-600 mb-6">Are you sure you want to delete "{customDesign?.pieceName}"? This action cannot be undone.</p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={handleCancelDelete}
+                                className="flex-1 bg-gray-200 text-black py-3 px-6 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleConfirmDelete}
+                                className="flex-1 bg-red-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-red-600 transition-colors"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            
             {/* Product Detail Section */}
             <section className="px-4 md:px-7 py-12">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 max-w-7xl mx-auto">
@@ -79,11 +154,113 @@ const ProductPage = () => {
                     <div className="flex justify-center">
                         <div className="w-full max-w-md">
                             <div className="bg-gray-100 rounded-2xl p-8 flex items-center justify-center">
+                                {customDesign ? (
+                                    /* Custom Design Display */
+                                    <div className="relative w-full max-w-sm">
+                                        {/* T-shirt mockup background */}
+                                        <img 
+                                            src="/src/assets/shirtfront.png" 
+                                            alt="Shirt Mockup" 
+                                            className="w-full h-auto object-contain"
+                                            style={{ 
+                                                filter: customDesign.color === '#FFFFFF' ? 'none' : 
+                                                       customDesign.color === '#000000' ? 'brightness(0)' : 'none'
+                                            }}
+                                        />
+                                        
+                                        {/* Uploaded design overlay */}
+                                        {currentImageView === 'front' && customDesign.frontDesign?.dataUrl && (
+                                            <div 
+                                                className="absolute"
+                                                style={{ 
+                                                    width: '145px', 
+                                                    height: '200px',
+                                                    top: '50%',
+                                                    left: '50%',
+                                                    transform: 'translate(-50%, -50%)'
+                                                }}
+                                            >
+                                                <img 
+                                                    src={customDesign.frontDesign.dataUrl} 
+                                                    alt="Front Design" 
+                                                    className="w-full h-full object-contain"
+                                                />
+                                            </div>
+                                        )}
+                                        
+                                        {currentImageView === 'back' && customDesign.backDesign?.dataUrl && (
+                                            <div 
+                                                className="absolute"
+                                                style={{ 
+                                                    width: '145px', 
+                                                    height: '200px',
+                                                    top: '50%',
+                                                    left: '50%',
+                                                    transform: 'translate(-50%, -50%)'
+                                                }}
+                                            >
+                                                <img 
+                                                    src={customDesign.backDesign.dataUrl} 
+                                                    alt="Back Design" 
+                                                    className="w-full h-full object-contain"
+                                                />
+                                            </div>
+                                        )}
+                                        
+                                        {/* Navigation arrows */}
+                                        {(customDesign.frontDesign?.dataUrl && customDesign.backDesign?.dataUrl) && (
+                                            <>
+                                                <button
+                                                    onClick={() => setCurrentImageView(currentImageView === 'front' ? 'back' : 'front')}
+                                                    className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-2 shadow-md transition-colors"
+                                                >
+                                                    <ChevronLeft size={20} className="text-gray-700" />
+                                                </button>
+                                                <button
+                                                    onClick={() => setCurrentImageView(currentImageView === 'front' ? 'back' : 'front')}
+                                                    className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-2 shadow-md transition-colors"
+                                                >
+                                                    <ChevronRight size={20} className="text-gray-700" />
+                                                </button>
+                                            </>
+                                        )}
+                                        
+                                        {/* Image Navigation */}
+                                        {(customDesign.frontDesign?.dataUrl || customDesign.backDesign?.dataUrl) && (
+                                            <div className="flex justify-center mt-4">
+                                                <div className="flex bg-white rounded-lg p-1 shadow-sm">
+                                                    <button
+                                                        onClick={() => setCurrentImageView('front')}
+                                                        className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                                                            currentImageView === 'front' 
+                                                                ? 'bg-black text-white' 
+                                                                : 'text-gray-600 hover:text-black'
+                                                        }`}
+                                                    >
+                                                        Front
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setCurrentImageView('back')}
+                                                        className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                                                            currentImageView === 'back' 
+                                                                ? 'bg-black text-white' 
+                                                                : 'text-gray-600 hover:text-black'
+                                                        }`}
+                                                    >
+                                                        Back
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    /* Regular Product Display */
                                 <img
                                     src={product.image}
                                     alt={product.title}
                                     className="w-full h-auto object-contain"
                                 />
+                                )}
                             </div>
                         </div>
                     </div>
@@ -93,20 +270,42 @@ const ProductPage = () => {
                         <div className="max-w-md">
                            
                             <h1 className="text-3xl md:text-4xl font-bold text-black mb-2">
-                                {product.title}
+                                {customDesign ? customDesign.pieceName : product.title}
                             </h1>
-                            
                           
                             <p className="text-lg text-black mb-4">
-                                By {product.creator}
+                                {customDesign ? `Campaign: ${customDesign.campaign}` : `By ${product.creator}`}
                             </p>
-                            
                           
                             <p className="text-2xl font-semibold text-black mb-8">
-                                {product.price}
+                                {customDesign ? `₦${customDesign.price}` : product.price}
                             </p>
 
                           
+                            {customDesign ? (
+                                /* Custom Design - Read-only Size and Quantity */
+                                <>
+                                    <div className="mb-8">
+                                        <label className="block text-sm font-medium text-black mb-3">
+                                            Size
+                                        </label>
+                                        <div className="px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-black">
+                                            {customDesign.sizes ? customDesign.sizes.join(', ') : customDesign.size}
+                                        </div>
+                                    </div>
+
+                                    <div className="mb-8">
+                                        <label className="block text-sm font-medium text-black mb-3">
+                                            Quantity
+                                        </label>
+                                        <div className="px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-black">
+                                            {customDesign.quantity}
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                /* Regular Product - Interactive Size and Quantity */
+                                <>
                             <div className="mb-8">
                                 <label className="block text-sm font-medium text-black mb-3">
                                     Size
@@ -118,7 +317,7 @@ const ProductPage = () => {
                                         className="w-full px-4 py-3 border border-gray-300 rounded-lg appearance-none bg-white text-black focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
                                     >
                                         <option value="">Choose an option</option>
-                                        {product.sizes.map((size) => (
+                                                {product.sizes.map((size: string) => (
                                             <option key={size} value={size}>
                                                 {size}
                                             </option>
@@ -136,7 +335,7 @@ const ProductPage = () => {
                                 <div className="flex items-center gap-3">
                                     <button
                                         onClick={() => setSelectedQuantity(Math.max(1, selectedQuantity - 1))}
-                                        className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center text-white hover:bg-red-600 transition-colors"
+                                                className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-black hover:bg-gray-300 transition-colors"
                                     >
                                         <span className="text-base">-</span>
                                     </button>
@@ -155,8 +354,39 @@ const ProductPage = () => {
                                     </button>
                                 </div>
                             </div>
+                                </>
+                            )}
 
-                           
+                            {/* Custom Design Description */}
+                            {customDesign && customDesign.description && (
+                                <div className="mb-8">
+                                    <label className="block text-sm font-medium text-black mb-3">
+                                        Description
+                                    </label>
+                                    <div className="p-4 bg-gray-50 rounded-lg">
+                                        <p className="text-gray-700">{customDesign.description}</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {customDesign ? (
+                                /* Edit and Delete Buttons for Custom Designs */
+                                <div className="flex gap-3 mb-8">
+                                    <button 
+                                        onClick={() => navigate('/create-design', { state: { editDesign: customDesign } })}
+                                        className="flex-1 bg-black text-white py-4 px-6 rounded-lg font-semibold text-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        Edit Design
+                                    </button>
+                                    <button 
+                                        onClick={handleDeleteClick}
+                                        className="bg-red-500 text-white py-4 px-6 rounded-lg font-semibold text-lg hover:bg-red-600 transition-colors flex items-center justify-center"
+                                    >
+                                        <Trash2 size={20} />
+                                    </button>
+                                </div>
+                            ) : (
+                                /* Add to Cart Button for Regular Products */
                             <button 
                                 onClick={handleAddToCart}
                                 className="w-full bg-black text-white py-4 px-6 rounded-lg font-semibold text-lg hover:bg-gray-800 transition-colors mb-8 disabled:bg-gray-400 disabled:cursor-not-allowed"
@@ -164,6 +394,7 @@ const ProductPage = () => {
                             >
                                 Add to cart
                             </button>
+                            )}
 
                           
                             <div className="space-y-2">

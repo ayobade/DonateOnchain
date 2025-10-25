@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
 import Header from "../component/Header";
 import Footer from "../component/Footer";
 import Banner from "../component/Banner";
@@ -9,16 +10,38 @@ import { useCart } from "../context/CartContext";
 const Cart = () => {
   const navigate = useNavigate();
   const { cartItems, updateQuantity, removeItem } = useCart();
+  const [customDesigns, setCustomDesigns] = useState<any[]>([]);
+
+  // Load custom designs from localStorage
+  useEffect(() => {
+    const savedDesigns = JSON.parse(localStorage.getItem('userDesigns') || '[]');
+    setCustomDesigns(savedDesigns);
+  }, []);
 
   const getProductById = (id: number) => {
-    return products.find((product) => product.id === id);
+    // First check regular products
+    const regularProduct = products.find((product) => product.id === id);
+    if (regularProduct) return regularProduct;
+    
+    // Then check custom designs
+    const customDesign = customDesigns.find((design) => design.id === id);
+    return customDesign;
   };
 
   const calculateSubtotal = () => {
     return cartItems.reduce((total, item) => {
       const product = getProductById(item.id);
       if (product) {
-        const price = parseInt(product.price.replace(/[^\d]/g, ""));
+        let price;
+        if (product.pieceName) {
+          // Custom design with price as number
+          price = parseInt(product.price);
+        } else if (product.price) {
+          // Regular product with price string like "₦20,000"
+          price = parseInt(product.price.replace(/[^\d]/g, ""));
+        } else {
+          price = 0;
+        }
         return total + price * item.quantity;
       }
       return total;
@@ -95,19 +118,56 @@ const Cart = () => {
                       >
                         <div className="flex gap-4">
                           {/* Product image */}
-                          <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                            <img
-                              src={product.image}
-                              alt={product.title}
-                              className="w-full h-full object-cover"
-                            />
+                          <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 relative">
+                            {product.pieceName ? (
+                              /* Custom Design Display */
+                              <>
+                                <img 
+                                  src="/src/assets/shirtfront.png" 
+                                  alt="Shirt Mockup" 
+                                  className="w-full h-full object-cover"
+                                  style={{ 
+                                    filter: product.color === '#FFFFFF' ? 'none' : 
+                                           product.color === '#000000' ? 'brightness(0)' : 'none'
+                                  }}
+                                />
+                                {product.frontDesign?.dataUrl && (
+                                  <div 
+                                    className="absolute"
+                                    style={{ 
+                                      width: '36px', 
+                                      height: '50px',
+                                      top: '50%',
+                                      left: '50%',
+                                      transform: 'translate(-50%, -50%)'
+                                    }}
+                                  >
+                                    <img 
+                                      src={product.frontDesign.dataUrl} 
+                                      alt="Design" 
+                                      className="w-full h-full object-contain"
+                                    />
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              /* Regular Product Display */
+                              <img
+                                src={product.image}
+                                alt={product.title}
+                                className="w-full h-full object-cover"
+                              />
+                            )}
                           </div>
 
                           {/* Product details */}
                           <div className="flex-1">
                             <h3 className="text-lg font-medium text-black mb-1">
-                              {product.title}
+                              {product.pieceName || product.title}
                             </h3>
+                            <p className="text-sm text-black mb-3">
+                              {product.pieceName ? `Campaign: ${product.campaign}` : `By ${product.creator}`}
+                            </p>
                             <p className="text-sm text-black mb-3">
                               {item.color} {item.size}
                             </p>
@@ -162,8 +222,9 @@ const Cart = () => {
                           <div className="text-right">
                             <p className="text-lg font-medium text-black">
                               {formatPrice(
-                                parseInt(product.price.replace(/[^\d]/g, "")) *
-                                  item.quantity
+                                product.pieceName ? 
+                                  parseInt(product.price) * item.quantity :
+                                  parseInt(product.price.replace(/[^\d]/g, "")) * item.quantity
                               )}
                             </p>
                           </div>

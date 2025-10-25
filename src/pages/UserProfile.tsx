@@ -2,14 +2,15 @@ import Header from "../component/Header";
 import Footer from "../component/Footer";
 import Button from "../component/Button";
 import NFTcard from "../component/NFTcard";
-import ProductCard from "../component/ProductCard";
 import { Plus, X, Camera } from "lucide-react";
-import { useState } from "react";
-import { products } from "../data/databank";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 const UserProfile = () => {
+    const navigate = useNavigate();
     const [activeCategory, setActiveCategory] = useState<'NFTs' | 'History' | 'Created'>('NFTs');
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [createdDesigns, setCreatedDesigns] = useState<any[]>([]);
     const [profileData, setProfileData] = useState({
         name: 'OluwaDayo',
         bio: 'Design with purpose turn your creativity into meaningful contributions that support real-world causes.',
@@ -23,6 +24,57 @@ const UserProfile = () => {
     const [bannerImage, setBannerImage] = useState<string | null>(null);
     const [profileImage, setProfileImage] = useState<string | null>(null);
     const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+    const [statistics, setStatistics] = useState({
+        causesSupported: 0,
+        totalDonated: 0,
+        totalProfit: 0,
+        totalDesigns: 0
+    });
+
+    // Load created designs from localStorage
+    useEffect(() => {
+        const savedDesigns = JSON.parse(localStorage.getItem('userDesigns') || '[]');
+        setCreatedDesigns(savedDesigns);
+        
+        // Set active tab if stored
+        const savedTab = localStorage.getItem('activeProfileTab');
+        if (savedTab && (savedTab === 'NFTs' || savedTab === 'History' || savedTab === 'Created')) {
+            setActiveCategory(savedTab as 'NFTs' | 'History' || 'Created');
+        }
+    }, []);
+
+    // Calculate statistics
+    useEffect(() => {
+        const cartItems = JSON.parse(localStorage.getItem('cart') || '[]');
+        const savedDesigns = JSON.parse(localStorage.getItem('userDesigns') || '[]');
+        
+        // Calculate causes supported (unique campaigns from cart items)
+        const uniqueCampaigns = new Set(cartItems.map((item: any) => item.campaign).filter(Boolean));
+        
+        // Calculate total donated (sum of all cart item prices)
+        const totalDonated = cartItems.reduce((sum: number, item: any) => {
+            const price = parseFloat(item.price?.replace(/[^\d.]/g, '') || '0');
+            return sum + price;
+        }, 0);
+        
+        // Calculate total profit (sum of purchased items from cart, not created designs)
+        // Profit should only count when someone purchases the user's designs
+        const totalProfit = cartItems.reduce((sum: number, item: any) => {
+            // Only count items that are user's designs (have pieceName or isNgo is false)
+            if (item.pieceName && !item.isNgo) {
+                const price = parseFloat(item.price?.replace(/[^\d.]/g, '') || '0');
+                return sum + price;
+            }
+            return sum;
+        }, 0);
+        
+        setStatistics({
+            causesSupported: uniqueCampaigns.size,
+            totalDonated: totalDonated,
+            totalProfit: totalProfit,
+            totalDesigns: savedDesigns.length
+        });
+    }, [createdDesigns]);
 
     const handleCategoryChange = (category: 'NFTs' | 'History' | 'Created') => {
         setActiveCategory(category);
@@ -149,7 +201,7 @@ const UserProfile = () => {
                             <Button variant="secondary" size="lg" className="gap-2" onClick={handleEditProfile}>
                                 Edit Profile
                             </Button>
-                            <Button variant="primary-bw" size="lg" className="gap-2">
+                            <Button variant="primary-bw" size="lg" className="gap-2" onClick={() => navigate('/create-design', { state: { fromNgo: false } })}>
                                 <Plus size={20} />
                                 Create Design
                             </Button>
@@ -163,25 +215,25 @@ const UserProfile = () => {
                     
                     <div className="bg-black rounded-lg p-6">
                         <h3 className="text-white text-sm font-medium mb-2">Causes Supported</h3>
-                        <p className="text-white text-3xl md:text-4xl font-bold">0</p>
+                        <p className="text-white text-3xl md:text-4xl font-bold">{statistics.causesSupported}</p>
                     </div>
                     
                   
                     <div className="bg-black rounded-lg p-6">
                         <h3 className="text-white text-sm font-medium mb-2">Total Donated</h3>
-                        <p className="text-white text-3xl md:text-4xl font-bold">$0</p>
+                        <p className="text-white text-3xl md:text-4xl font-bold">₦{statistics.totalDonated.toLocaleString()}</p>
                     </div>
                     
                    
                     <div className="bg-black rounded-lg p-6">
                         <h3 className="text-white text-sm font-medium mb-2">Total Profit</h3>
-                        <p className="text-white text-3xl md:text-4xl font-bold">$0</p>
+                        <p className="text-white text-3xl md:text-4xl font-bold">₦{statistics.totalProfit.toLocaleString()}</p>
                     </div>
                     
                  
                     <div className="bg-black rounded-lg p-6">
                         <h3 className="text-white text-sm font-medium mb-2">Total Designs</h3>
-                        <p className="text-white text-3xl md:text-4xl font-bold">0</p>
+                        <p className="text-white text-3xl md:text-4xl font-bold">{statistics.totalDesigns}</p>
                     </div>
                     </div>
                 </div>
@@ -215,7 +267,7 @@ const UserProfile = () => {
                     
                    
                     {activeCategory === 'NFTs' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-40">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-40">
                             <NFTcard
                                 image="/src/assets/Clothimg.png"
                                 title="Live In Balance NFT"
@@ -305,16 +357,84 @@ const UserProfile = () => {
                     )}
 
                     {activeCategory === 'Created' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-40">
-                            {products.slice(0, 8).map((product) => (
-                                <ProductCard
-                                    key={product.id}
-                                    image={product.image}
-                                    title={product.title}
-                                    creator={product.creator}
-                                    price={product.price}
-                                />
-                            ))}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-40">
+                            {createdDesigns.length > 0 ? (
+                                createdDesigns.map((design) => (
+                                    <div 
+                                        key={design.id} 
+                                        className="bg-white rounded-3xl p-4 hover:border hover:border-black/10 transition-colors cursor-pointer"
+                                        onClick={() => navigate(`/product/${design.id}`)}
+                                    >
+                                        <div className="rounded-2xl bg-[#eeeeee] mb-4">
+                                            <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center relative">
+                                                {/* T-shirt mockup background */}
+                                                <img 
+                                                    src="/src/assets/shirtfront.png" 
+                                                    alt="Shirt Mockup" 
+                                                    className="absolute inset-0 w-full h-full object-cover rounded-xl"
+                                                    style={{ 
+                                                        filter: design.color === '#FFFFFF' ? 'none' : 
+                                                               design.color === '#000000' ? 'brightness(0)' : 'none'
+                                                    }}
+                                                />
+                                                
+                                                {/* Uploaded design overlay */}
+                                                {design.frontDesign?.dataUrl && (
+                                                    <div 
+                                                        className="absolute"
+                                                        style={{ 
+                                                            width: '145px', 
+                                                            height: '200px',
+                                                            top: '50%',
+                                                            left: '50%',
+                                                            transform: 'translate(-50%, -50%)'
+                                                        }}
+                                                    >
+                                                        <img 
+                                                            src={design.frontDesign.dataUrl} 
+                                                            alt="Design" 
+                                                            className="w-full h-full object-contain"
+                                                        />
+                                                    </div>
+                                                )}
+                                                
+                                                {/* Fallback if no design */}
+                                                {!design.frontDesign?.dataUrl && (
+                                                    <div className="text-center text-gray-500">
+                                                        <div className="text-4xl mb-2">👕</div>
+                                                        <p className="text-sm">{design.type}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <h3 className="text-[22px] font-semibold leading-tight mb-1">
+                                                {design.pieceName}
+                                            </h3>
+                                            <p className="text-[14px] text-black/60 mb-3">Campaign: {design.campaign}</p>
+                                            <p className="text-[22px] font-semibold">₦{design.price}</p>
+                                            <p className="text-xs text-gray-500 mt-1">
+                                                Created: {new Date(design.createdAt).toLocaleDateString()}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="col-span-full text-center py-12">
+                                    <div className="text-6xl mb-4">🎨</div>
+                                    <h3 className="text-xl font-semibold text-gray-600 mb-2">No designs created yet</h3>
+                                    <p className="text-gray-500 mb-6">Start creating your first design to see it here!</p>
+                                    <Button
+                                        variant="primary-bw"
+                                        size="lg"
+                                        onClick={() => navigate('/create-design', { state: { fromNgo: false } })}
+                                        className="gap-2"
+                                    >
+                                        <Plus size={20} />
+                                        Create Design
+                                    </Button>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
