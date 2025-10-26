@@ -296,8 +296,8 @@ const NgoProfile = () => {
                             </div>
                             <div className="max-w-md">
                                 <p className={`text-black text-sm leading-relaxed break-words ${!showFullBio ? 'line-clamp-2 overflow-hidden' : ''}`}>
-                                    {profileData.bio}
-                                </p>
+                                {profileData.bio}
+                            </p>
                                 {profileData.bio && profileData.bio.length > 100 && (
                                     <button
                                         onClick={() => setShowFullBio(!showFullBio)}

@@ -13,11 +13,13 @@ import HowItWorks from './pages/HowItWorks'
 import CreateDesign from './pages/CreateDesign'
 import BecomeanNgo from './pages/BecomeanNgo'
 import NgoProfile from './pages/NgoProfile'
+import Header from './component/Header'
 
 const App = () => {
     return (
         <CartProvider>
             <Router>
+                <Header />
                 <ScrollToTop />
                 <Routes>
                     <Route path="/" element={<Home />} />

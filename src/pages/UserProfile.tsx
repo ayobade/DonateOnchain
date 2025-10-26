@@ -2,15 +2,18 @@ import Header from "../component/Header";
 import Footer from "../component/Footer";
 import Button from "../component/Button";
 import NFTcard from "../component/NFTcard";
-import { Plus, X, Camera } from "lucide-react";
+import { Plus, X, Camera, Copy, Check } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAccount } from "wagmi";
 
 const UserProfile = () => {
     const navigate = useNavigate();
+    const { address, isConnected } = useAccount();
     const [activeCategory, setActiveCategory] = useState<'NFTs' | 'History' | 'Created'>('NFTs');
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [createdDesigns, setCreatedDesigns] = useState<any[]>([]);
+    const [copied, setCopied] = useState(false);
     const [profileData, setProfileData] = useState({
         name: 'OluwaDayo',
         bio: 'Design with purpose turn your creativity into meaningful contributions that support real-world causes.',
@@ -78,6 +81,19 @@ const UserProfile = () => {
 
     const handleCategoryChange = (category: 'NFTs' | 'History' | 'Created') => {
         setActiveCategory(category);
+    };
+
+    const handleCopyAddress = () => {
+        if (address) {
+            navigator.clipboard.writeText(address);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
+    };
+
+    const shortenAddress = (address: string) => {
+        if (!address) return '';
+        return `${address.slice(0, 6)}...${address.slice(-4)}`;
     };
 
     const handleEditProfile = () => {
@@ -191,9 +207,29 @@ const UserProfile = () => {
                       
                         <div className="flex-1">
                             <h1 className="text-2xl md:text-4xl font-bold text-black mb-2">{profileData.name}</h1>
-                            <p className="text-black text-sm md:text-lg leading-relaxed max-w-md">
+                            <p className="text-black text-sm md:text-lg leading-relaxed max-w-md mb-3">
                                 {profileData.bio}
                             </p>
+                            {isConnected && address && (
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={handleCopyAddress}
+                                        className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-sm font-mono"
+                                    >
+                                        {copied ? (
+                                            <>
+                                                <Check size={16} className="text-green-600" />
+                                                <span className="text-green-600">Copied!</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Copy size={16} className="text-gray-600" />
+                                                <span className="text-gray-700">{shortenAddress(address)}</span>
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            )}
                         </div>
                         
                    
