@@ -150,7 +150,7 @@ const Cart = () => {
                             
                               <>
                                 <img 
-                                  src="/src/assets/shirtfront.png" 
+                                  src="/shirtfront.png" 
                                   alt="Shirt Mockup" 
                                   className="w-full h-full object-cover"
                                   style={{ 

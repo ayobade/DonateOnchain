@@ -775,7 +775,7 @@ const NgoProfile = () => {
                                             <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center relative">
                                                 {/* T-shirt mockup background */}
                                                 <img 
-                                                    src="/src/assets/shirtfront.png" 
+                                                    src="/shirtfront.png" 
                                                     alt="Shirt Mockup" 
                                                     className="w-full h-full object-contain"
                                                     style={{ 

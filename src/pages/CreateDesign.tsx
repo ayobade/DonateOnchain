@@ -465,7 +465,7 @@ const CreateDesign = () => {
                                 <div className="flex flex-col items-center">
                                     <div className="relative w-80 h-96 bg-white-100 rounded-lg flex items-center justify-center ">
                                         <img 
-                                            src="/src/assets/shirtfront.png" 
+                                            src="/shirtfront.png" 
                                             alt="Shirt Front" 
                                             className="absolute inset-0 w-full h-full object-cover rounded-lg"
                                             style={{ filter: getColorFilter(getCurrentColor()) }}
@@ -534,7 +534,7 @@ const CreateDesign = () => {
                                 <div className="flex flex-col items-center">
                                     <div className="relative w-80 h-96 bg-white-100 rounded-lg flex items-center justify-center">
                                         <img 
-                                            src="/src/assets/shirtfront.png" 
+                                            src="/shirtfront.png" 
                                             alt="Shirt Front" 
                                             className="absolute inset-0 w-full h-full object-cover rounded-lg"
                                             style={{ filter: getColorFilter(getCurrentColor()) }}
@@ -739,7 +739,7 @@ const CreateDesign = () => {
                                     <div className="flex flex-col items-center">
                                         <div className="relative w-80 h-96 bg-white-100 rounded-lg flex items-center justify-center">
                                             <img 
-                                                src="/src/assets/shirtfront.png" 
+                                                src="/shirtfront.png" 
                                                 alt="Shirt Front" 
                                                 className="absolute inset-0 w-full h-full object-cover rounded-lg"
                                                 style={{ filter: getColorFilter(getCurrentColor()) }}
@@ -806,7 +806,7 @@ const CreateDesign = () => {
                                     <div className="flex flex-col items-center">
                                         <div className="relative w-80 h-96 bg-white-100 rounded-lg flex items-center justify-center">
                                             <img 
-                                                src="/src/assets/shirtfront.png" 
+                                                src="/shirtfront.png" 
                                                 alt="Shirt Front" 
                                                 className="absolute inset-0 w-full h-full object-cover rounded-lg"
                                                 style={{ filter: getColorFilter(getCurrentColor()) }}

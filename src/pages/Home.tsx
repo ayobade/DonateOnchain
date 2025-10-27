@@ -187,7 +187,7 @@ const Home = () => {
                       <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center relative">
                       
                         <img 
-                          src="/src/assets/shirtfront.png" 
+src="/shirtfront.png" 
                           alt="Shirt Mockup" 
                           className="absolute inset-0 w-full h-full object-cover rounded-xl"
                           style={{ 

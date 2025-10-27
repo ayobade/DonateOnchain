@@ -302,7 +302,7 @@ const ProductPage = () => {
                                     <div className="relative w-full max-w-sm">
                                      
                                         <img 
-                                            src="/src/assets/shirtfront.png" 
+                                            src="/shirtfront.png" 
                                             alt="Shirt Mockup" 
                                             className="w-full h-auto object-contain"
                                             style={{ 
