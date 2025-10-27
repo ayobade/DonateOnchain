@@ -26,6 +26,7 @@ const Shop = () => {
         category: []
     })
     const [filteredProducts, setFilteredProducts] = useState<any[]>([])
+    const [allItems, setAllItems] = useState<any[]>([])
     
 
     const getCategoryDisplayName = (category: string) => {
@@ -56,37 +57,58 @@ const Shop = () => {
     }
   
     useEffect(() => {
-        setFilteredProducts(products)
+        // Load created designs from localStorage
+        const userDesigns = JSON.parse(localStorage.getItem('userDesigns') || '[]')
+        const ngoDesigns = JSON.parse(localStorage.getItem('ngoDesigns') || '[]')
+        const allDesigns = [...userDesigns, ...ngoDesigns]
+        
+        // Convert designs to shop items format
+        const designItems = allDesigns.map((design: any) => ({
+            id: design.id,
+            image: design.frontDesign?.dataUrl || '/src/assets/Clothimg.png',
+            title: design.pieceName || 'Untitled Design',
+            creator: 'User Design',
+            price: design.price || '0',
+            category: design.type?.toLowerCase() || 'shirt',
+            categoryType: 'design',
+            isDesign: true,
+            design: design
+        }))
+        
+        // Combine products and designs
+        const combinedItems = [...products, ...designItems]
+        setAllItems(combinedItems)
+        setFilteredProducts(combinedItems)
     }, [])
 
    
     const applyFilters = () => {
-        let filtered = products
+        let filtered = allItems
 
       
         if (activeCategory !== 'all') {
-            filtered = filtered.filter(product => 
-                product.categoryType === activeCategory
+            filtered = filtered.filter(item => 
+                item.categoryType === activeCategory
             )
         }
 
        
         if (filters.priceRange.length > 0) {
-            filtered = filtered.filter(product => 
-                filters.priceRange.includes(getPriceRange(product.price))
+            filtered = filtered.filter(item => 
+                filters.priceRange.includes(getPriceRange(item.price))
             )
         }
 
         if (filters.size.length > 0) {
-            filtered = filtered.filter(product => 
-                filters.size.includes(product.size)
+            filtered = filtered.filter(item => 
+                item.size && filters.size.includes(item.size)
             )
         }
 
       
         if (filters.category.length > 0) {
-            filtered = filtered.filter(product => 
-                filters.category.includes(product.category)
+            filtered = filtered.filter(item => 
+                filters.category.includes(item.category)
             )
         }
 
@@ -102,38 +124,38 @@ const Shop = () => {
             size: [],
             category: []
         })
-        setFilteredProducts(products)
+        setFilteredProducts(allItems)
         setIsFilterOpen(false)
     }
 
  
     const handleCategoryClick = (category: string) => {
         setActiveCategory(category)
-        let filtered = products
+        let filtered = allItems
 
       
         if (category !== 'all') {
-            filtered = filtered.filter(product => 
-                product.categoryType === category
+            filtered = filtered.filter(item => 
+                item.categoryType === category
             )
         }
 
       
         if (filters.priceRange.length > 0) {
-            filtered = filtered.filter(product => 
-                filters.priceRange.includes(getPriceRange(product.price))
+            filtered = filtered.filter(item => 
+                filters.priceRange.includes(getPriceRange(item.price))
             )
         }
 
         if (filters.size.length > 0) {
-            filtered = filtered.filter(product => 
-                filters.size.includes(product.size)
+            filtered = filtered.filter(item => 
+                item.size && filters.size.includes(item.size)
             )
         }
 
         if (filters.category.length > 0) {
-            filtered = filtered.filter(product => 
-                filters.category.includes(product.category)
+            filtered = filtered.filter(item => 
+                filters.category.includes(item.category)
             )
         }
 
@@ -393,6 +415,15 @@ const Shop = () => {
                                                     />
                                                     <span className="text-sm">Sweaters</span>
                                                 </label>
+                                                <label className="flex items-center">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        className="mr-2" 
+                                                        checked={filters.category.includes('shoes')}
+                                                        onChange={() => handleFilterChange('category', 'shoes')}
+                                                    />
+                                                    <span className="text-sm">Shoes</span>
+                                                </label>
                                             </div>
                                         </div>
                                     </div>
@@ -419,17 +450,53 @@ const Shop = () => {
               
                 {filteredProducts.length > 0 ? (
                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                         {filteredProducts.map((product) => (
-                             <ProductCard
-                                 key={product.id}
-                                 image={product.image}
-                                 title={product.title}
-                                 creator={product.creator}
-                                 price={product.price}
-                                 alt={product.title}
-                                 onClick={() => navigate(`/product/${product.id}`)}
-                             />
-                         ))}
+                         {filteredProducts.map((item) => {
+                             // Check if it's a custom design
+                             if (item.isDesign) {
+                                 return (
+                                     <div
+                                         key={item.id}
+                                         className="bg-white rounded-3xl p-4 hover:border hover:border-black/10 transition-colors cursor-pointer"
+                                         onClick={() => navigate(`/product/${item.id}`)}
+                                     >
+                                         <div className="rounded-2xl bg-[#eeeeee] mb-4">
+                                             <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center relative">
+                                                 {item.design.frontDesign?.dataUrl ? (
+                                                     <img 
+                                                         src={item.design.frontDesign.dataUrl} 
+                                                         alt={item.title}
+                                                         className="w-full h-full object-contain"
+                                                     />
+                                                 ) : (
+                                                     <div className="text-center text-gray-500">
+                                                         <div className="text-4xl mb-2">👟</div>
+                                                         <p className="text-sm">{item.design.type}</p>
+                                                     </div>
+                                                 )}
+                                             </div>
+                                         </div>
+                                         <div>
+                                             <h3 className="text-[22px] font-semibold leading-tight mb-1">{item.title}</h3>
+                                             <p className="text-[14px] text-black/60 mb-3">By {item.creator}</p>
+                                             <p className="text-[22px] font-semibold">{item.price}</p>
+                                         </div>
+                                     </div>
+                                 )
+                             } else {
+                                 // Regular product
+                                 return (
+                                     <ProductCard
+                                         key={item.id}
+                                         image={item.image}
+                                         title={item.title}
+                                         creator={item.creator}
+                                         price={item.price}
+                                         alt={item.title}
+                                         onClick={() => navigate(`/product/${item.id}`)}
+                                     />
+                                 )
+                             }
+                         })}
                      </div>
                 ) : (
                     <div className="text-center py-16">

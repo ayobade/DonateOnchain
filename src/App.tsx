@@ -1,4 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useAccount } from 'wagmi'
 import Home from './pages/Home'
 import Shop from './pages/Shop'
 import ProductPage from './pages/ProductPage'
@@ -14,13 +16,32 @@ import CreateDesign from './pages/CreateDesign'
 import BecomeanNgo from './pages/BecomeanNgo'
 import NgoProfile from './pages/NgoProfile'
 import Header from './component/Header'
+import ProfileSetupModal from './component/ProfileSetupModal'
 
 const App = () => {
+    const { isConnected } = useAccount()
+    const [showProfileSetup, setShowProfileSetup] = useState(false)
+
+    useEffect(() => {
+        if (isConnected) {
+            const setupCompleted = localStorage.getItem('profileSetupCompleted')
+            if (!setupCompleted) {
+                setShowProfileSetup(true)
+            }
+        }
+    }, [isConnected])
+
+    const handleCloseProfileSetup = () => {
+        setShowProfileSetup(false)
+        localStorage.setItem('profileSetupCompleted', 'true')
+    }
+
     return (
         <CartProvider>
             <Router>
                 <Header />
                 <ScrollToTop />
+                <ProfileSetupModal isOpen={showProfileSetup} onClose={handleCloseProfileSetup} />
                 <Routes>
                     <Route path="/" element={<Home />} />
                     <Route path="/shop" element={<Shop />} />

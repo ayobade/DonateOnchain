@@ -69,6 +69,66 @@ const Checkout = () => {
         // Simulate processing time
         await new Promise(resolve => setTimeout(resolve, 2000))
         
+        // Track donations and purchases
+        const donations: any[] = []
+        const userPurchases: any[] = []
+        const ngoPurchases: any[] = []
+        
+        cartItems.forEach((item) => {
+            const product = getProductById(item.id)
+            if (!product) return
+            
+            const price = product.price
+            
+            // If item has a campaign, it's a donation
+            if (item.campaign) {
+                donations.push({
+                    itemId: item.id,
+                    itemName: product.title,
+                    campaign: item.campaign,
+                    amount: price,
+                    date: new Date().toISOString()
+                })
+            }
+            
+            // Track purchases for design creators
+            if (item.pieceName) {
+                const purchase = {
+                    itemId: item.id,
+                    pieceName: item.pieceName,
+                    amount: price,
+                    date: new Date().toISOString()
+                }
+                
+                if (item.isNgo) {
+                    ngoPurchases.push(purchase)
+                } else {
+                    userPurchases.push(purchase)
+                }
+            }
+        })
+        
+        // Save donations
+        if (donations.length > 0) {
+            const existingDonations = JSON.parse(localStorage.getItem('userDonations') || '[]')
+            existingDonations.push(...donations)
+            localStorage.setItem('userDonations', JSON.stringify(existingDonations))
+        }
+        
+        // Save user purchases
+        if (userPurchases.length > 0) {
+            const existingPurchases = JSON.parse(localStorage.getItem('userPurchases') || '[]')
+            existingPurchases.push(...userPurchases)
+            localStorage.setItem('userPurchases', JSON.stringify(existingPurchases))
+        }
+        
+        // Save NGO purchases
+        if (ngoPurchases.length > 0) {
+            const existingPurchases = JSON.parse(localStorage.getItem('ngoPurchases') || '[]')
+            existingPurchases.push(...ngoPurchases)
+            localStorage.setItem('ngoPurchases', JSON.stringify(existingPurchases))
+        }
+        
         clearCart()
         setIsProcessing(false)
         setShowSuccessModal(true)

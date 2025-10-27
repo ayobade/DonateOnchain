@@ -1,7 +1,6 @@
 import Header from "../component/Header";
 import Footer from "../component/Footer";
 import Button from "../component/Button";
-import NFTcard from "../component/NFTcard";
 import { Plus, X, Camera, Copy, Check } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -15,14 +14,14 @@ const UserProfile = () => {
     const [createdDesigns, setCreatedDesigns] = useState<any[]>([]);
     const [copied, setCopied] = useState(false);
     const [profileData, setProfileData] = useState({
-        name: 'OluwaDayo',
-        bio: 'Design with purpose turn your creativity into meaningful contributions that support real-world causes.',
+        name: '',
+        bio: '',
         bannerImage: null as string | null,
         profileImage: null as string | null
     });
     const [formData, setFormData] = useState({
-        name: 'OluwaDayo',
-        bio: 'Design with purpose turn your creativity into meaningful contributions that support real-world causes.'
+        name: '',
+        bio: ''
     });
     const [bannerImage, setBannerImage] = useState<string | null>(null);
     const [profileImage, setProfileImage] = useState<string | null>(null);
@@ -33,6 +32,20 @@ const UserProfile = () => {
         totalProfit: 0,
         totalDesigns: 0
     });
+
+    // Load profile data from localStorage
+    useEffect(() => {
+        const savedProfile = localStorage.getItem('userProfile');
+        if (savedProfile) {
+            const profile = JSON.parse(savedProfile);
+            setProfileData({
+                name: profile.name || 'User',
+                bio: profile.bio || '',
+                bannerImage: profile.bannerImage || null,
+                profileImage: profile.profileImage || null
+            });
+        }
+    }, []);
 
     // Load created designs from localStorage
     useEffect(() => {
@@ -46,29 +59,29 @@ const UserProfile = () => {
         }
     }, []);
 
-    // Calculate statistics
+    // Calculate statistics from donations and purchases
     useEffect(() => {
-        const cartItems = JSON.parse(localStorage.getItem('cart') || '[]');
         const savedDesigns = JSON.parse(localStorage.getItem('userDesigns') || '[]');
         
-        // Calculate causes supported (unique campaigns from cart items)
-        const uniqueCampaigns = new Set(cartItems.map((item: any) => item.campaign).filter(Boolean));
+        // Get donation history (when user donated to causes)
+        const donationHistory = JSON.parse(localStorage.getItem('userDonations') || '[]');
         
-        // Calculate total donated (sum of all cart item prices)
-        const totalDonated = cartItems.reduce((sum: number, item: any) => {
-            const price = parseFloat(item.price?.replace(/[^\d.]/g, '') || '0');
-            return sum + price;
+        // Get purchase history (when someone purchased the user's designs)
+        const purchaseHistory = JSON.parse(localStorage.getItem('userPurchases') || '[]');
+        
+        // Calculate causes supported (unique campaigns from donations)
+        const uniqueCampaigns = new Set(donationHistory.map((donation: any) => donation.campaign).filter(Boolean));
+        
+        // Calculate total donated (sum of all donations)
+        const totalDonated = donationHistory.reduce((sum: number, donation: any) => {
+            const amount = parseFloat(donation.amount?.replace(/[^\d.]/g, '') || '0');
+            return sum + amount;
         }, 0);
         
-        // Calculate total profit (sum of purchased items from cart, not created designs)
-        // Profit should only count when someone purchases the user's designs
-        const totalProfit = cartItems.reduce((sum: number, item: any) => {
-            // Only count items that are user's designs (have pieceName or isNgo is false)
-            if (item.pieceName && !item.isNgo) {
-                const price = parseFloat(item.price?.replace(/[^\d.]/g, '') || '0');
-                return sum + price;
-            }
-            return sum;
+        // Calculate total profit (sum of purchases of user's designs)
+        const totalProfit = purchaseHistory.reduce((sum: number, purchase: any) => {
+            const amount = parseFloat(purchase.amount?.replace(/[^\d.]/g, '') || '0');
+            return sum + amount;
         }, 0);
         
         setStatistics({
@@ -112,26 +125,29 @@ const UserProfile = () => {
     };
 
     const handleSaveProfile = () => {
+        const updatedProfile = {
+            name: formData.name,
+            bio: formData.bio,
+            bannerImage: bannerImage || profileData.bannerImage,
+            profileImage: profileImage || profileData.profileImage
+        };
         
         setProfileData(prev => ({
             ...prev,
+            name: formData.name,
             bio: formData.bio,
             bannerImage: bannerImage || prev.bannerImage,
             profileImage: profileImage || prev.profileImage
         }));
         
-        
+        localStorage.setItem('userProfile', JSON.stringify(updatedProfile));
         setIsEditModalOpen(false);
-        
       
         setShowSuccessMessage(true);
-        
         
         setTimeout(() => {
             setShowSuccessMessage(false);
         }, 3000);
-        
-        
     };
 
     const handleInputChange = (field: string, value: string) => {
@@ -206,10 +222,12 @@ const UserProfile = () => {
                     <div className="flex flex-col md:flex-row items-start md:items-center gap-6 mb-12">
                       
                         <div className="flex-1">
-                            <h1 className="text-2xl md:text-4xl font-bold text-black mb-2">{profileData.name}</h1>
-                            <p className="text-black text-sm md:text-lg leading-relaxed max-w-md mb-3">
+                            <h1 className="text-2xl md:text-4xl font-bold text-black mb-2">{profileData.name || 'User'}</h1>
+                            {profileData.bio && (
+                                <p className="text-black text-sm md:text-lg leading-relaxed max-w-md mb-3">
                                 {profileData.bio}
                             </p>
+                            )}
                             {isConnected && address && (
                                 <div className="flex items-center gap-2">
                                     <button
@@ -303,91 +321,21 @@ const UserProfile = () => {
                     
                    
                     {activeCategory === 'NFTs' && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-40">
-                            <NFTcard
-                                image="/src/assets/Clothimg.png"
-                                title="Live In Balance NFT"
-                            />
-                            <NFTcard
-                                image="/src/assets/Clothimg.png"
-                                title="Live In Balance NFT"
-                            />
-                            <NFTcard
-                                image="/src/assets/Clothimg.png"
-                                title="Live In Balance NFT"
-                            />
-                            <NFTcard
-                                image="/src/assets/Clothimg.png"
-                                title="Live In Balance NFT"
-                            />
-                            <NFTcard
-                                image="/src/assets/Clothimg.png"
-                                title="Live In Balance NFT"
-                            />
-                            <NFTcard
-                                image="/src/assets/Clothimg.png"
-                                title="Live In Balance NFT"
-                            />
-                            <NFTcard
-                                image="/src/assets/Clothimg.png"
-                                title="Live In Balance NFT"
-                            />
-                            <NFTcard
-                                image="/src/assets/Clothimg.png"
-                                title="Live In Balance NFT"
-                            />
+                        <div className="mb-40">
+                            <div className="text-center py-12">
+                                <div className="text-6xl mb-4">🎫</div>
+                                <h3 className="text-xl font-semibold text-gray-600 mb-2">No NFTs collected yet</h3>
+                                <p className="text-gray-500">Your collected NFTs will appear here</p>
+                            </div>
                         </div>
                     )}
 
                     {activeCategory === 'History' && (
-                        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden mb-40">
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead className="bg-black text-white">
-                                        <tr>
-                                            <th className="px-6 py-4 text-left text-sm font-medium">ID</th>
-                                            <th className="px-6 py-4 text-left text-sm font-medium">Details</th>
-                                            <th className="px-6 py-4 text-left text-sm font-medium">Causes</th>
-                                            <th className="px-6 py-4 text-left text-sm font-medium">Amount</th>
-                                            <th className="px-6 py-4 text-left text-sm font-medium">Split</th>
-                                            <th className="px-6 py-4 text-left text-sm font-medium">Status</th>
-                                            <th className="px-6 py-4 text-left text-sm font-medium">Date</th>
-                                            <th className="px-6 py-4 text-left text-sm font-medium">Blockchain</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white">
-                                        <tr className="border-b border-gray-200">
-                                            <td className="px-6 py-4 text-sm text-gray-900">2334</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">Live in Balance</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">Books for Africa</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">25HBAR</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">10%</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">Completed</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">20/03/2025</td>
-                                            <td className="px-6 py-4 text-sm text-blue-600 cursor-pointer hover:underline">View</td>
-                                        </tr>
-                                        <tr className="border-b border-gray-200">
-                                            <td className="px-6 py-4 text-sm text-gray-900">2334</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">Purchased Live in Balance</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">Save Gaza</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">10USDT</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">20%</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">Completed</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">20/03/2025</td>
-                                            <td className="px-6 py-4 text-sm text-blue-600 cursor-pointer hover:underline">View</td>
-                                        </tr>
-                                        <tr className="border-b border-gray-200">
-                                            <td className="px-6 py-4 text-sm text-gray-900">2334</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">Purchased Live in Balance</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">Purchased Live in Balance</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">50USDT</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">10%</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">Completed</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">20/03/2025</td>
-                                            <td className="px-6 py-4 text-sm text-blue-600 cursor-pointer hover:underline">View</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                        <div className="mb-40">
+                            <div className="text-center py-12">
+                                <div className="text-6xl mb-4">📜</div>
+                                <h3 className="text-xl font-semibold text-gray-600 mb-2">No transaction history</h3>
+                                <p className="text-gray-500">Your purchase and donation history will appear here</p>
                             </div>
                         </div>
                     )}
@@ -567,8 +515,8 @@ const UserProfile = () => {
                                         <input
                                             type="text"
                                             value={formData.name}
-                                            readOnly
-                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
+                                            onChange={(e) => handleInputChange('name', e.target.value)}
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent outline-none"
                                         />
                                     </div>
                                     
@@ -607,3 +555,4 @@ const UserProfile = () => {
 }
 
 export default UserProfile;
+

@@ -6,7 +6,10 @@ interface CartItem {
     quantity: number
     size: string
     color: string
-    uniqueId: string 
+    uniqueId: string
+    campaign?: string
+    pieceName?: string
+    isNgo?: boolean
 }
 
 interface CartContextType {

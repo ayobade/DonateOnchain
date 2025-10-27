@@ -26,7 +26,7 @@ const CreateDesign = () => {
     const [existingBackImage, setExistingBackImage] = useState<string | null>(null)
     const navigate = useNavigate()
     const location = useLocation()
-    const countdownRef = useRef<number | null>(null)
+    const countdownRef = useRef<NodeJS.Timeout | null>(null)
 
     // Load edit design data if in edit mode
     useEffect(() => {
@@ -152,20 +152,85 @@ const CreateDesign = () => {
         // Determine storage key based on user type
         const storageKey = isNgo ? 'ngoDesigns' : 'userDesigns'
         
-        // Convert file to base64 for persistence
-        const convertFileToBase64 = (file: File): Promise<string> => {
+        // Convert file to blob URL (compressed)
+        const convertFileToBlobURL = async (file: File): Promise<string> => {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
-                reader.onload = () => resolve(reader.result as string);
+                reader.onload = async (e) => {
+                    const dataUrl = e.target?.result as string;
+                    // Compress image using canvas
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        if (!ctx) {
+                            resolve(dataUrl);
+                            return;
+                        }
+                        
+                        // Set max dimensions to reduce file size
+                        const maxWidth = 800;
+                        const maxHeight = 800;
+                        let width = img.width;
+                        let height = img.height;
+                        
+                        if (width > maxWidth || height > maxHeight) {
+                            if (width > height) {
+                                height = (height * maxWidth) / width;
+                                width = maxWidth;
+                            } else {
+                                width = (width * maxHeight) / height;
+                                height = maxHeight;
+                            }
+                        }
+                        
+                        canvas.width = width;
+                        canvas.height = height;
+                        ctx.drawImage(img, 0, 0, width, height);
+                        
+                        // Convert to blob with compression
+                        canvas.toBlob((blob) => {
+                            if (blob) {
+                                const url = URL.createObjectURL(blob);
+                                resolve(url);
+                            } else {
+                                resolve(dataUrl);
+                            }
+                        }, 'image/jpeg', 0.7); // 70% quality
+                    };
+                    img.onerror = () => resolve(dataUrl);
+                    img.src = dataUrl;
+                };
                 reader.onerror = reject;
                 reader.readAsDataURL(file);
             });
         };
         
-        // Create design object with image data
+        // Create design object with image references
         const createDesignData = async () => {
+            const designId = isEditMode ? editDesignId! : Date.now();
+            
+            let frontDesignUrl = existingFrontImage;
+            let backDesignUrl = existingBackImage;
+            
+            if (frontDesign) {
+                try {
+                    frontDesignUrl = await convertFileToBlobURL(frontDesign);
+                } catch (error) {
+                    console.error('Error processing front design:', error);
+                }
+            }
+            
+            if (backDesign) {
+                try {
+                    backDesignUrl = await convertFileToBlobURL(backDesign);
+                } catch (error) {
+                    console.error('Error processing back design:', error);
+                }
+            }
+            
             const designData = {
-                id: isEditMode ? editDesignId : Date.now(), // Use existing ID for edit mode
+                id: designId,
                 type: selectedType,
                 sizes: selectedSizes,
                 quantity: parseInt(quantity),
@@ -174,31 +239,21 @@ const CreateDesign = () => {
                 pieceName: pieceName,
                 campaign: selectedCampaign,
                 description: description,
-                createdAt: isEditMode ? undefined : new Date().toISOString(), // Keep original creation date for edits
-                isNgo: isNgo, // Add flag to identify NGO designs
-                frontDesign: frontDesign ? {
-                    name: frontDesign.name,
-                    size: frontDesign.size,
-                    type: frontDesign.type,
-                    dataUrl: await convertFileToBase64(frontDesign) // Store as base64
-                } : existingFrontImage ? {
-                    name: 'existing-front',
-                    size: 0,
-                    type: 'image/png',
-                    dataUrl: existingFrontImage
+                createdAt: isEditMode ? undefined : new Date().toISOString(),
+                isNgo: isNgo,
+                frontDesign: frontDesignUrl ? {
+                    name: frontDesign?.name || 'front',
+                    size: frontDesign?.size || 0,
+                    type: frontDesign?.type || 'image/png',
+                    dataUrl: frontDesignUrl
                 } : null,
-                backDesign: backDesign ? {
-                    name: backDesign.name,
-                    size: backDesign.size,
-                    type: backDesign.type,
-                    dataUrl: await convertFileToBase64(backDesign) // Store as base64
-                } : existingBackImage ? {
-                    name: 'existing-back',
-                    size: 0,
-                    type: 'image/png',
-                    dataUrl: existingBackImage
+                backDesign: backDesignUrl ? {
+                    name: backDesign?.name || 'back',
+                    size: backDesign?.size || 0,
+                    type: backDesign?.type || 'image/png',
+                    dataUrl: backDesignUrl
                 } : null
-            }
+            };
             
             return designData;
         };
@@ -503,6 +558,7 @@ const CreateDesign = () => {
                                         <option value="Hoodie">Hoodie</option>
                                         <option value="Cap">Cap</option>
                                         <option value="Sweater">Sweater</option>
+                                        <option value="Shoes">Shoes</option>
                                     </select>
                                     <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 pointer-events-none" size={20} />
                                 </div>

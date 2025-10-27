@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import Button from './Button'
 import DonateLogo from '../assets/DonateLogo.png'
 import { useCart } from '../context/CartContext'
-import { products } from '../data/databank'
+import { products, campaigns, causes, creators } from '../data/databank'
 import { reownAppKit } from '../config/reownConfig'
 import { useAccount, useDisconnect, useChainId, useSwitchChain } from 'wagmi'
 
@@ -49,19 +49,78 @@ const Header = () => {
             return
         }
         
-        const results = products.filter(product => 
-            product.title.toLowerCase().includes(query.toLowerCase()) ||
-            product.creator.toLowerCase().includes(query.toLowerCase()) ||
-            product.category.toLowerCase().includes(query.toLowerCase())
-        )
-        setSearchResults(results)
+        const searchTerm = query.toLowerCase()
+        
+        // Search products
+        const productResults = products.filter(product => 
+            product.title.toLowerCase().includes(searchTerm) ||
+            product.creator.toLowerCase().includes(searchTerm) ||
+            product.category.toLowerCase().includes(searchTerm) ||
+            product.description.toLowerCase().includes(searchTerm)
+        ).map(p => ({ ...p, type: 'product' }))
+        
+        // Search campaigns
+        const campaignResults = campaigns.filter(campaign => 
+            campaign.title.toLowerCase().includes(searchTerm) ||
+            campaign.category.toLowerCase().includes(searchTerm) ||
+            campaign.about.toLowerCase().includes(searchTerm)
+        ).map(c => ({ ...c, type: 'campaign' }))
+        
+        // Search causes
+        const causeResults = causes.filter(cause => 
+            cause.title.toLowerCase().includes(searchTerm) ||
+            cause.organization.toLowerCase().includes(searchTerm)
+        ).map(c => ({ ...c, type: 'cause' }))
+        
+        // Search creators
+        const creatorResults = creators.filter(creator => 
+            creator.name.toLowerCase().includes(searchTerm) ||
+            creator.role.toLowerCase().includes(searchTerm)
+        ).map(c => ({ ...c, type: 'creator' }))
+        
+        // Search user designs
+        const userDesigns = JSON.parse(localStorage.getItem('userDesigns') || '[]')
+        const ngoDesigns = JSON.parse(localStorage.getItem('ngoDesigns') || '[]')
+        const allDesigns = [...userDesigns, ...ngoDesigns]
+        
+        const designResults = allDesigns.filter((design: any) => 
+            design.pieceName?.toLowerCase().includes(searchTerm) ||
+            design.campaign?.toLowerCase().includes(searchTerm) ||
+            design.description?.toLowerCase().includes(searchTerm) ||
+            design.type?.toLowerCase().includes(searchTerm)
+        ).map((d: any) => ({ ...d, type: 'design' }))
+        
+        const allResults = [...productResults, ...campaignResults, ...causeResults, ...creatorResults, ...designResults]
+        setSearchResults(allResults)
     }
 
-    const handleSearchResultClick = (productId: number) => {
+    const handleSearchResultClick = (item: any) => {
         setIsSearchOpen(false)
         setSearchQuery('')
         setSearchResults([])
-        navigate(`/product/${productId}`)
+        
+        // Navigate based on item type
+        switch (item.type) {
+            case 'product':
+                navigate(`/product/${item.id}`)
+                break
+            case 'campaign':
+                navigate(`/campaign/${item.id}`)
+                break
+            case 'design':
+                navigate(`/product/${item.id}`)
+                break
+            case 'cause':
+                // Causes don't have individual pages yet, but could navigate to campaigns
+                navigate('/campaign')
+                break
+            case 'creator':
+                // Creators don't have individual pages yet
+                navigate('/')
+                break
+            default:
+                navigate('/')
+        }
     }
 
     const handleProfileClick = () => {
@@ -85,8 +144,9 @@ const Header = () => {
         disconnect()
         setIsWalletMenuOpen(false)
         
-        // Clear any wallet-specific session data if needed
-        // Note: We don't clear cart, designs, or NGO data as they're not tied to wallet address
+        // Clear NGO applications when wallet is disconnected
+        // They are tied to the wallet address
+        localStorage.removeItem('ngos')
         
         navigate('/')
     }
@@ -99,7 +159,7 @@ const Header = () => {
     }
 
     const handleSwitchNetwork = (chainIdToSwitch: number) => {
-        if (switchChain) {
+        if (switchChain) {  
             switchChain({ chainId: chainIdToSwitch })
         }
     }
@@ -331,27 +391,49 @@ const Header = () => {
                    
                     {searchResults.length > 0 && (
                         <div className="max-h-80 overflow-y-auto">
-                            {searchResults.map((product) => (
+                            {searchResults.map((item, index) => (
                                 <div 
-                                    key={product.id}
+                                    key={item.id ? `${item.type}-${item.id}` : `item-${index}`}
                                     className="flex items-center gap-4 p-4 hover:bg-gray-50 cursor-pointer border-b border-gray-100"
-                                    onClick={() => handleSearchResultClick(product.id)}
+                                    onClick={() => handleSearchResultClick(item)}
                                 >
                                     <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                                        <img 
-                                            src={product.image} 
-                                            alt={product.title}
-                                            className="w-full h-full object-cover"
-                                        />
+                                        {item.image && (
+                                            <img 
+                                                src={item.image} 
+                                                alt={item.title || item.name}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        )}
                                     </div>
                                     <div className="flex-1">
-                                        <h3 className="font-medium text-black">{product.title}</h3>
-                                        <p className="text-sm text-gray-600">By {product.creator}</p>
-                                        <p className="text-sm text-gray-500">{product.category}</p>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-medium text-blue-600 px-2 py-0.5 bg-blue-50 rounded">
+                                                {item.type?.toUpperCase()}
+                                            </span>
+                                            <h3 className="font-medium text-black">{item.title || item.pieceName || item.name}</h3>
+                                        </div>
+                                        {item.creator && (
+                                            <p className="text-sm text-gray-600">By {item.creator}</p>
+                                        )}
+                                        {item.organization && (
+                                            <p className="text-sm text-gray-600">{item.organization}</p>
+                                        )}
+                                        {item.role && (
+                                            <p className="text-sm text-gray-600">{item.role}</p>
+                                        )}
+                                        {item.campaign && (
+                                            <p className="text-sm text-gray-500">Campaign: {item.campaign}</p>
+                                        )}
+                                        {(item.category || item.categoryType) && (
+                                            <p className="text-sm text-gray-500">{item.category || item.categoryType}</p>
+                                        )}
                                     </div>
-                                    <div className="text-right">
-                                        <p className="font-medium text-black">{product.price}</p>
-                                    </div>
+                                    {(item.price || item.amountRaised) && (
+                                        <div className="text-right">
+                                            <p className="font-medium text-black">{item.price || item.amountRaised}</p>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -359,7 +441,7 @@ const Header = () => {
                     
                     {searchQuery && searchResults.length === 0 && (
                         <div className="p-4 text-center text-gray-500">
-                            No products found for "{searchQuery}"
+                            No results found for "{searchQuery}"
                         </div>
                     )}
                 </div>

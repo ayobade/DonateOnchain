@@ -9,10 +9,71 @@ import Bannerleft from "../assets/Bannerleft.png";
 import Bannerright from "../assets/Bannerright.png";
 import BannerNft from "../assets/BannerNft.png";
 import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { products, causes, creators } from '../data/databank';
 
 const Home = () => {
-    const navigate = useNavigate()
+    const navigate = useNavigate();
+    const [popularDesigns, setPopularDesigns] = useState<any[]>([]);
+    const [popularCampaigns, setPopularCampaigns] = useState<any[]>([]);
+    const [showcaseCreators, setShowcaseCreators] = useState<any[]>([]);
+    const [shoeCollections, setShoeCollections] = useState<any[]>([]);
+
+    useEffect(() => {
+        // Load user designs (most recent first)
+        const userDesigns = JSON.parse(localStorage.getItem('userDesigns') || '[]');
+        const ngoDesigns = JSON.parse(localStorage.getItem('ngoDesigns') || '[]');
+        const allDesigns = [...userDesigns, ...ngoDesigns];
+        
+        // Sort by creation date (most recent first)
+        // Mix user designs with mock data to always show 5 items
+        const sortedDesigns = allDesigns
+            .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        
+        // Take user designs (up to 5) and pad with mock data
+        const userDesignsOnly = sortedDesigns.slice(0, 5);
+        const mockDesignsNeeded = 5 - userDesignsOnly.length;
+        const recentDesigns = [
+            ...userDesignsOnly,
+            ...products.slice(0, mockDesignsNeeded)
+        ];
+        
+        setPopularDesigns(recentDesigns);
+
+        // Load campaigns from localStorage (if exists)
+        const campaigns = JSON.parse(localStorage.getItem('campaigns') || '[]');
+        // Sort campaigns by creation date (most recent first)
+        const sortedCampaigns = campaigns
+            .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        
+        // Take user campaigns (up to 5) and pad with mock causes data
+        const userCampaignsOnly = sortedCampaigns.slice(0, 5);
+        const mockCampaignsNeeded = 5 - userCampaignsOnly.length;
+        const recentCampaigns = [
+            ...userCampaignsOnly,
+            ...causes.slice(0, mockCampaignsNeeded)
+        ];
+        
+        setPopularCampaigns(recentCampaigns);
+        
+        // Filter shoe designs
+        const allShoeDesigns = allDesigns
+            .filter((design: any) => design.type?.toLowerCase() === 'shoes')
+            .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        
+        // Take user shoe designs (up to 5) and pad with mock products
+        const userShoeDesignsOnly = allShoeDesigns.slice(0, 5);
+        const mockShoesNeeded = 5 - userShoeDesignsOnly.length;
+        const finalShoeCollections = [
+            ...userShoeDesignsOnly,
+            ...products.slice(0, mockShoesNeeded)
+        ];
+        
+        setShoeCollections(finalShoeCollections);
+        
+        // For creators, use static data
+        setShowcaseCreators(creators.slice(0, 6));
+    }, []);
   return (
     <div>
       <Header />
@@ -59,23 +120,106 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Popular campaign */}
+      {/* Popular Designs */}
       <section className="px-4 md:px-7 py-12">
         <h2 className="text-3xl md:text-5xl font-semibold tracking-tight mb-8">
-          Popular Campaigns
+          Popular Designs
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-          {products.slice(0, 5).map((product) => (
-            <ProductCard
-              key={product.id}
-              image={product.image}
-              title={product.title}
-              creator={product.creator}
-              price={product.price}
-              alt={product.title}
-              onClick={() => navigate(`/product/${product.id}`)}
-            />
-          ))}
+          {popularDesigns.length > 0 ? (
+            popularDesigns.map((item) => {
+              // Check if it's a custom design or regular product
+              if (item.pieceName || item.isDesign) {
+                // Custom design - show on shirt mockup
+                const design = item.isDesign ? item.design : item;
+                return (
+                  <div 
+                    key={item.id}
+                    className="bg-white rounded-3xl p-4 hover:border hover:border-black/10 transition-colors cursor-pointer"
+                    onClick={() => navigate(`/product/${item.id}`)}
+                  >
+                    <div className="rounded-2xl bg-[#eeeeee] mb-4">
+                      <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center relative">
+                        {/* T-shirt mockup background */}
+                        <img 
+                          src="/src/assets/shirtfront.png" 
+                          alt="Shirt Mockup" 
+                          className="absolute inset-0 w-full h-full object-cover rounded-xl"
+                          style={{ 
+                            filter: design.color === '#FFFFFF' ? 'none' : 
+                                   design.color === '#000000' ? 'brightness(0)' : 'none'
+                          }}
+                        />
+                        
+                        {/* Uploaded design overlay */}
+                        {design.frontDesign?.dataUrl && (
+                          <div 
+                            className="absolute"
+                            style={{ 
+                              width: '145px', 
+                              height: '200px',
+                              top: '50%',
+                              left: '50%',
+                              transform: 'translate(-50%, -50%)'
+                            }}
+                          >
+                            <img 
+                              src={design.frontDesign.dataUrl} 
+                              alt="Design" 
+                              className="w-full h-full object-contain"
+                            />
+                          </div>
+                        )}
+                        
+                        {/* Fallback if no design */}
+                        {!design.frontDesign?.dataUrl && (
+                          <div className="text-center text-gray-500">
+                            <div className="text-4xl mb-2">👕</div>
+                            <p className="text-sm">{design.type}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-[22px] font-semibold leading-tight mb-1">
+                        {item.pieceName || design.pieceName}
+                      </h3>
+                      <p className="text-[14px] text-black/60 mb-3">Campaign: {design.campaign}</p>
+                      <p className="text-[22px] font-semibold">₦{design.price}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Created: {new Date(design.createdAt || Date.now()).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                )
+              } else {
+                // Regular product - use ProductCard
+                return (
+                  <ProductCard
+                    key={item.id}
+                    image={item.image}
+                    title={item.title}
+                    creator={item.creator}
+                    price={item.price}
+                    alt={item.title}
+                    onClick={() => navigate(`/product/${item.id}`)}
+                  />
+                )
+              }
+            })
+          ) : (
+            products.slice(0, 5).map((product) => (
+              <ProductCard
+                key={product.id}
+                image={product.image}
+                title={product.title}
+                creator={product.creator}
+                price={product.price}
+                alt={product.title}
+                onClick={() => navigate(`/product/${product.id}`)}
+              />
+            ))
+          )}
         </div>
       </section>
 
@@ -168,21 +312,33 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Popular causes */}
+      {/* Popular Campaigns */}
       <section className="px-4 md:px-7 py-12">
         <h2 className="text-3xl md:text-5xl font-semibold tracking-tight mb-8">
-          Popular Causes
+          Popular Campaigns
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-          {causes.map((cause) => (
-            <CauseCard
-              key={cause.id}
-              image={cause.image}
-              title={cause.title}
-              organization={cause.organization}
-              alt={cause.title}
-            />
-          ))}
+          {popularCampaigns.length > 0 ? (
+            popularCampaigns.map((campaign) => (
+              <CauseCard
+                key={campaign.id}
+                image={campaign.image}
+                title={campaign.title}
+                organization={campaign.organization}
+                alt={campaign.title}
+              />
+            ))
+          ) : (
+            causes.map((cause) => (
+              <CauseCard
+                key={cause.id}
+                image={cause.image}
+                title={cause.title}
+                organization={cause.organization}
+                alt={cause.title}
+              />
+            ))
+          )}
         </div>
       </section>
 
@@ -262,7 +418,7 @@ const Home = () => {
       <section className="px-4 md:px-7 py-12">
           <h2 className="text-3xl md:text-5xl font-semibold tracking-tight mb-8">Check Out Your Creators</h2>
            <div className="flex flex-wrap gap-6">
-              {creators.map((creator) => (
+              {showcaseCreators.map((creator) => (
                 <CreatorCard
                   key={creator.id}
                   image={creator.image}
@@ -281,17 +437,59 @@ const Home = () => {
           Shoes Collections
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-          {products.slice(0, 5).map((product) => (
-            <ProductCard
-              key={`shoes-${product.id}`}
-              image={product.image}
-              title={product.title}
-              creator={product.creator}
-              price={product.price}
-              alt={product.title}
-              onClick={() => navigate(`/product/${product.id}`)}
-            />
-          ))}
+          {shoeCollections.map((item) => {
+            // Check if it's a custom design or regular product
+            if (item.pieceName && item.frontDesign) {
+              // Custom design
+              return (
+                <div 
+                  key={`shoe-${item.id}`}
+                  className="bg-white rounded-3xl p-4 hover:border hover:border-black/10 transition-colors cursor-pointer"
+                  onClick={() => navigate(`/product/${item.id}`)}
+                >
+                  <div className="rounded-2xl bg-[#eeeeee] mb-4">
+                    <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center relative">
+                      {/* For shoes, show design directly */}
+                      {item.frontDesign?.dataUrl && (
+                        <img 
+                          src={item.frontDesign.dataUrl} 
+                          alt={item.pieceName}
+                          className="w-full h-full object-contain"
+                        />
+                      )}
+                      {!item.frontDesign?.dataUrl && (
+                        <div className="text-center text-gray-500">
+                          <div className="text-4xl mb-2">👟</div>
+                          <p className="text-sm">{item.type}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-[22px] font-semibold leading-tight mb-1">{item.pieceName}</h3>
+                    <p className="text-[14px] text-black/60 mb-3">Campaign: {item.campaign}</p>
+                    <p className="text-[22px] font-semibold">₦{item.price}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Created: {new Date(item.createdAt || Date.now()).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+              )
+            } else {
+              // Regular product
+              return (
+                <ProductCard
+                  key={`shoes-${item.id}`}
+                  image={item.image}
+                  title={item.title}
+                  creator={item.creator}
+                  price={item.price}
+                  alt={item.title}
+                  onClick={() => navigate(`/product/${item.id}`)}
+                />
+              )
+            }
+          })}
         </div>
       </section>
 
