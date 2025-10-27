@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, X } from 'lucide-react'
 import Header from "../component/Header"
 import Footer from "../component/Footer"
 import Button from "../component/Button"
@@ -8,14 +8,17 @@ import { useCart } from '../context/CartContext'
 import { products } from '../data/databank'
 import { useAccount } from 'wagmi'
 import { reownAppKit } from '../config/reownConfig'
+import { saveDonation, savePurchase, getAllGlobalDesigns } from '../utils/firebaseStorage'
 
 const Checkout = () => {
     const navigate = useNavigate()
-    const { cartItems, clearCart } = useCart()
-    const { isConnected } = useAccount()
+    const { cartItems, clearCart, removeItem } = useCart()
+    const { isConnected, address, connector } = useAccount()
     const [showSuccessModal, setShowSuccessModal] = useState(false)
     const [isProcessing, setIsProcessing] = useState(false)
     const [showConnectWalletModal, setShowConnectWalletModal] = useState(false)
+    const [showOwnDesignError, setShowOwnDesignError] = useState(false)
+    const [customDesigns, setCustomDesigns] = useState<any[]>([])
     const [formData, setFormData] = useState({
         email: '',
         firstName: '',
@@ -26,15 +29,104 @@ const Checkout = () => {
         paymentMethod: ''
     })
 
+   
+    useEffect(() => {
+        const loadDesigns = async () => {
+            try {
+               
+                console.log('Checkout - Loading designs from Firebase...');
+                const firebaseDesigns = await getAllGlobalDesigns();
+                console.log('Checkout - Firebase designs loaded:', firebaseDesigns.length);
+                
+               
+                const userDesigns = JSON.parse(localStorage.getItem('userDesigns') || '[]')
+                const ngoDesigns = JSON.parse(localStorage.getItem('ngoDesigns') || '[]')
+                
+               
+                const allDesigns = [...firebaseDesigns, ...userDesigns, ...ngoDesigns];
+                const uniqueDesigns = Array.from(
+                    new Map(allDesigns.map(design => [design.id, design])).values()
+                );
+                
+                setCustomDesigns(uniqueDesigns);
+                console.log('Checkout - Total unique designs loaded:', uniqueDesigns.length);
+            } catch (error) {
+                console.error('Error loading designs:', error)
+              
+                const userDesigns = JSON.parse(localStorage.getItem('userDesigns') || '[]')
+                const ngoDesigns = JSON.parse(localStorage.getItem('ngoDesigns') || '[]')
+                setCustomDesigns([...userDesigns, ...ngoDesigns])
+            }
+        }
+        loadDesigns()
+    }, [])
+
+
     const getProductById = (id: number) => {
-        return products.find(product => product.id === id)
+      
+        const regularProduct = products.find(product => product.id === id)
+        if (regularProduct) return regularProduct
+        
+       
+        const customDesign = customDesigns.find((design: any) => design.id === id)
+        return customDesign
+    }
+
+    const checkIfOwnDesign = () => {
+        if (!isConnected || !address) return false
+        
+        return cartItems.some(item => {
+            const customDesign = customDesigns.find((design: any) => design.id === item.id)
+            if (customDesign) {
+                return customDesign.walletAddress?.toLowerCase() === address.toLowerCase() ||
+                       customDesign.connectedWalletAddress?.toLowerCase() === address.toLowerCase()
+            }
+            return false
+        })
+    }
+
+    const isMyProduct = (itemId: number) => {
+        if (!isConnected || !address) return false
+        
+        const customDesign = customDesigns.find((design: any) => design.id === itemId)
+        if (customDesign) {
+            return customDesign.walletAddress?.toLowerCase() === address.toLowerCase() ||
+                   customDesign.connectedWalletAddress?.toLowerCase() === address.toLowerCase()
+        }
+        return false
+    }
+
+    const getConnectedPaymentMethod = () => {
+        if (!isConnected || !connector) return null
+        
+        const connectorName = connector.name.toLowerCase()
+        if (connectorName.includes('metamask') || connectorName.includes('meta')) {
+            return 'metamask'
+        }
+        if (connectorName.includes('hashpack')) {
+            return 'hashpack'
+        }
+        return 'metamask'
+    }
+
+    const isPaymentMethodConnected = (paymentMethod: string) => {
+        return isConnected && getConnectedPaymentMethod() === paymentMethod
     }
 
     const calculateSubtotal = () => {
         return cartItems.reduce((total, item) => {
             const product = getProductById(item.id)
             if (product) {
-                const price = parseInt(product.price.replace(/[^\d]/g, ''))
+                let price
+                if (product.pieceName) {
+                  
+                    price = parseInt(product.price.toString().replace(/[^\d]/g, ''))
+                } else if (product.price) {
+                   
+                    price = parseInt(product.price.replace(/[^\d]/g, ''))
+                } else {
+                    price = 0
+                }
                 return total + (price * item.quantity)
             }
             return total
@@ -71,9 +163,10 @@ const Checkout = () => {
 
     useEffect(() => {
         if (isConnected && !formData.paymentMethod) {
+            const connectedMethod = getConnectedPaymentMethod()
             setFormData(prev => ({
                 ...prev,
-                paymentMethod: 'metamask'
+                paymentMethod: connectedMethod || 'metamask'
             }))
         }
     }, [isConnected, formData.paymentMethod])
@@ -91,13 +184,25 @@ const Checkout = () => {
             return
         }
         
+      
+        if (checkIfOwnDesign()) {
+            setShowOwnDesignError(true)
+            return
+        }
+        
         setIsProcessing(true)
         console.log('Processing checkout with:', formData)
         
-        // Simulate processing time
+      
         await new Promise(resolve => setTimeout(resolve, 2000))
         
-        // Track donations and purchases
+        if (!address) {
+            console.error('No wallet address found')
+            setIsProcessing(false)
+            return
+        }
+        
+
         const donations: any[] = []
         const userPurchases: any[] = []
         const ngoPurchases: any[] = []
@@ -108,24 +213,29 @@ const Checkout = () => {
             
             const price = product.price
             
-            // If item has a campaign, it's a donation
             if (item.campaign) {
                 donations.push({
                     itemId: item.id,
-                    itemName: product.title,
+                    itemName: product.title || product.pieceName,
                     campaign: item.campaign,
                     amount: price,
-                    date: new Date().toISOString()
+                    date: new Date().toISOString(),
+                    donorAddress: address
                 })
             }
             
-            // Track purchases for design creators
             if (item.pieceName) {
+                const creatorWallet = product.walletAddress || product.connectedWalletAddress || ''
+                
                 const purchase = {
                     itemId: item.id,
                     pieceName: item.pieceName,
                     amount: price,
-                    date: new Date().toISOString()
+                    date: new Date().toISOString(),
+                    purchasedBy: address,
+                    creatorWallet: creatorWallet,
+                    isNgo: item.isNgo,
+                    purchaseType: 'design'
                 }
                 
                 if (item.isNgo) {
@@ -136,25 +246,34 @@ const Checkout = () => {
             }
         })
         
-        // Save donations
+        try {
+            for (const donation of donations) {
+                await saveDonation(address, donation)
+            }
+            
+            const allPurchases = [...userPurchases, ...ngoPurchases]
+            for (const purchase of allPurchases) {
+                const creatorWallet = purchase.creatorWallet || address
+                await savePurchase(creatorWallet, {
+                    ...purchase,
+                    creatorWallet: creatorWallet
+                })
+            }
+        } catch (error) {
+            console.error('Error saving to Firebase, falling back to localStorage:', error)
         if (donations.length > 0) {
             const existingDonations = JSON.parse(localStorage.getItem('userDonations') || '[]')
             existingDonations.push(...donations)
             localStorage.setItem('userDonations', JSON.stringify(existingDonations))
         }
         
-        // Save user purchases
-        if (userPurchases.length > 0) {
-            const existingPurchases = JSON.parse(localStorage.getItem('userPurchases') || '[]')
-            existingPurchases.push(...userPurchases)
-            localStorage.setItem('userPurchases', JSON.stringify(existingPurchases))
-        }
-        
-        // Save NGO purchases
-        if (ngoPurchases.length > 0) {
-            const existingPurchases = JSON.parse(localStorage.getItem('ngoPurchases') || '[]')
-            existingPurchases.push(...ngoPurchases)
-            localStorage.setItem('ngoPurchases', JSON.stringify(existingPurchases))
+            const allPurchasesLocal = [...userPurchases, ...ngoPurchases]
+            for (const purchase of allPurchasesLocal) {
+                const storageKey = purchase.isNgo ? 'ngoPurchases' : 'userPurchases'
+                const existingPurchases = JSON.parse(localStorage.getItem(storageKey) || '[]')
+                existingPurchases.push(purchase)
+                localStorage.setItem(storageKey, JSON.stringify(existingPurchases))
+            }
         }
         
         clearCart()
@@ -283,11 +402,11 @@ const Checkout = () => {
                                     }`}>
                                         <span className="text-black font-medium">Metamask *</span>
                                         <Button 
-                                            variant={isConnected ? "secondary" : "primary-bw"} 
+                                            variant={isPaymentMethodConnected('metamask') ? "secondary" : "primary-bw"} 
                                             size="sm"
                                             onClick={() => handlePaymentMethodSelect('metamask')}
                                         >
-                                            {isConnected ? 'Connected' : 'Connect Wallet'}
+                                            {isPaymentMethodConnected('metamask') ? 'Connected' : 'Connect Wallet'}
                                         </Button>
                                     </div>
                                     
@@ -298,11 +417,11 @@ const Checkout = () => {
                                     }`}>
                                         <span className="text-black font-medium">Hashpack *</span>
                                         <Button 
-                                            variant={isConnected ? "secondary" : "primary-bw"} 
+                                            variant={isPaymentMethodConnected('hashpack') ? "secondary" : "primary-bw"} 
                                             size="sm"
                                             onClick={() => handlePaymentMethodSelect('hashpack')}
                                         >
-                                            {isConnected ? 'Connected' : 'Connect Wallet'}
+                                            {isPaymentMethodConnected('hashpack') ? 'Connected' : 'Connect Wallet'}
                                         </Button>
                                     </div>
                                 </div>
@@ -319,24 +438,79 @@ const Checkout = () => {
                                         const product = getProductById(item.id)
                                         if (!product) return null
                                         
+                                        const isMyOwnProduct = isMyProduct(item.id)
+                                        
                                         return (
-                                            <div key={`${item.id}-${index}`} className="flex items-center gap-4 py-4 border-b border-gray-200">
-                                                <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                                            <div 
+                                                key={`${item.id}-${index}`} 
+                                                className={`flex items-center gap-4 py-4 border-b ${isMyOwnProduct ? 'border-red-500 bg-red-50' : 'border-gray-200'} rounded-lg px-3`}
+                                            >
+                                                <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 relative">
+                                                    {product.pieceName ? (
+                                                        <>
+                                                            <img 
+                                                                src="/src/assets/shirtfront.png" 
+                                                                alt="Shirt Mockup" 
+                                                                className="w-full h-full object-cover"
+                                                                style={{ 
+                                                                    filter: product.color === '#FFFFFF' ? 'none' : 
+                                                                           product.color === '#000000' ? 'brightness(0)' : 'none'
+                                                                }}
+                                                            />
+                                                            {(product.frontDesign?.dataUrl || product.frontDesign?.url) && (
+                                                                <div 
+                                                                    className="absolute"
+                                                                    style={{ 
+                                                                        width: '65%', 
+                                                                        height: 'auto',
+                                                                        maxWidth: '36px',
+                                                                        maxHeight: '50px',
+                                                                        top: '50%',
+                                                                        left: '50%',
+                                                                        transform: 'translate(-50%, -50%)'
+                                                                    }}
+                                                                >
+                                                                    <img 
+                                                                        src={product.frontDesign?.url || product.frontDesign?.dataUrl} 
+                                                                        alt="Design" 
+                                                                        className="w-full h-full object-contain"
+                                                                    />
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    ) : (
                                                     <img 
                                                         src={product.image} 
                                                         alt={product.title}
                                                         className="w-full h-full object-cover"
                                                     />
+                                                    )}
                                                 </div>
                                                 <div className="flex-1">
-                                                    <h3 className="font-medium text-black">{product.title}</h3>
+                                                    <h3 className="font-medium text-black">{product.pieceName || product.title}</h3>
                                                     <p className="text-sm text-gray-600">{item.color} {item.size}</p>
                                                     <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
+                                                    {isMyOwnProduct && (
+                                                        <p className="text-sm text-red-600 font-medium mt-1">Your Design</p>
+                                                    )}
                                                 </div>
+                                                <div className="flex items-center gap-3">
                                                 <div className="text-right">
                                                     <p className="font-medium text-black">
-                                                        {formatPrice(parseInt(product.price.replace(/[^\d]/g, '')) * item.quantity)}
-                                                    </p>
+                                                            {formatPrice(
+                                                                product.pieceName ? 
+                                                                    parseInt(product.price.toString().replace(/[^\d]/g, '')) * item.quantity :
+                                                                    parseInt(product.price.replace(/[^\d]/g, '')) * item.quantity
+                                                            )}
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => removeItem(item.uniqueId)}
+                                                        className="p-2 hover:bg-gray-200 rounded-full transition-colors"
+                                                        title="Remove item"
+                                                    >
+                                                        <X size={20} className="text-gray-600" />
+                                                    </button>
                                                 </div>
                                             </div>
                                         )
@@ -375,12 +549,19 @@ const Checkout = () => {
                                         </p>
                                     </div>
                                 )}
+                                {isConnected && checkIfOwnDesign() && (
+                                    <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                                        <p className="text-sm text-red-800">
+                                            You cannot purchase your own created design. Please remove it from your cart.
+                                        </p>
+                                    </div>
+                                )}
                                 <Button 
                                     variant="primary-bw" 
                                     size="lg" 
                                     className="w-full"
                                     onClick={handleCheckout}
-                                    disabled={!isFormValid() || isProcessing || !isConnected}
+                                    disabled={!isFormValid() || isProcessing || !isConnected || checkIfOwnDesign()}
                                 >
                                     {isProcessing ? 'Processing...' : 'Complete Order'}
                                 </Button>
@@ -390,7 +571,7 @@ const Checkout = () => {
                 </div>
             </section>
 
-            {/* Processing Loader Modal */}
+          
             {isProcessing && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
                     <div className="bg-white rounded-lg p-8 max-w-md mx-4 text-center shadow-2xl">
@@ -408,7 +589,7 @@ const Checkout = () => {
                 </div>
             )}
 
-            {/* Success Modal */}
+          
             {showSuccessModal && (
                 <div 
                     className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm"
@@ -439,7 +620,7 @@ const Checkout = () => {
                 </div>
             )}
 
-            {/* Connect Wallet Modal */}
+          
             {showConnectWalletModal && (
                 <div 
                     className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm"
@@ -476,6 +657,37 @@ const Checkout = () => {
                                 Cancel
                             </Button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+          
+            {showOwnDesignError && (
+                <div 
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm"
+                    onClick={() => setShowOwnDesignError(false)}
+                >
+                    <div 
+                        className="bg-white rounded-lg p-8 max-w-md mx-4 text-center shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
+                            <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </div>
+                        <h2 className="text-2xl font-bold text-black mb-2">Cannot Checkout Own Design</h2>
+                        <p className="text-gray-600 mb-6">
+                            You cannot purchase your own created design. Please remove it from your cart before checking out.
+                        </p>
+                        <Button 
+                            variant="primary-bw" 
+                            size="lg" 
+                            className="w-full"
+                            onClick={() => setShowOwnDesignError(false)}
+                        >
+                            OK, I understand
+                        </Button>
                     </div>
                 </div>
             )}

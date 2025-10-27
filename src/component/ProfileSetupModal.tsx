@@ -1,6 +1,8 @@
 import { X, Camera } from 'lucide-react'
 import { useState } from 'react'
 import Button from './Button'
+import { useAccount } from 'wagmi'
+import { saveUserProfileWithImages } from '../utils/firebaseStorage'
 
 interface ProfileSetupModalProps {
     isOpen: boolean
@@ -11,6 +13,7 @@ const ProfileSetupModal = ({ isOpen, onClose }: ProfileSetupModalProps) => {
     const [formData, setFormData] = useState({ name: '', bio: '' })
     const [profileImage, setProfileImage] = useState<string | null>(null)
     const [bannerImage, setBannerImage] = useState<string | null>(null)
+    const { address, isConnected } = useAccount()
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target
@@ -83,14 +86,29 @@ const ProfileSetupModal = ({ isOpen, onClose }: ProfileSetupModalProps) => {
         }
     }
 
-    const handleSave = () => {
-        localStorage.setItem('userProfile', JSON.stringify({
+    const handleSave = async () => {
+        const profileData = {
             name: formData.name || 'User',
             bio: formData.bio || '',
             bannerImage,
             profileImage
-        }))
+        }
+        
+        // Save to localStorage
+        localStorage.setItem('userProfile', JSON.stringify(profileData))
         localStorage.setItem('profileSetupCompleted', 'true')
+        
+        // Also save to Firebase if connected
+        if (isConnected && address) {
+            try {
+                await saveUserProfileWithImages(address, profileData)
+                console.log('Profile saved to Firebase')
+            } catch (error) {
+                console.error('Error saving profile to Firebase:', error)
+                // Continue even if Firebase fails
+            }
+        }
+        
         onClose()
     }
 

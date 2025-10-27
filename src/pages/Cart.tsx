@@ -6,24 +6,51 @@ import Banner from "../component/Banner";
 import Button from "../component/Button";
 import { products } from "../data/databank";
 import { useCart } from "../context/CartContext";
+import { getAllGlobalDesigns } from '../utils/firebaseStorage';
 
 const Cart = () => {
   const navigate = useNavigate();
   const { cartItems, updateQuantity, removeItem } = useCart();
   const [customDesigns, setCustomDesigns] = useState<any[]>([]);
 
-  // Load custom designs from localStorage
+ 
   useEffect(() => {
-    const savedDesigns = JSON.parse(localStorage.getItem('userDesigns') || '[]');
-    setCustomDesigns(savedDesigns);
+    const loadDesigns = async () => {
+      try {
+     
+        const firebaseDesigns = await getAllGlobalDesigns();
+        console.log('Cart - Firebase designs loaded:', firebaseDesigns.length);
+        
+       
+        const userDesigns = JSON.parse(localStorage.getItem('userDesigns') || '[]');
+        const ngoDesigns = JSON.parse(localStorage.getItem('ngoDesigns') || '[]');
+        
+       
+        const allDesigns = [...firebaseDesigns, ...userDesigns, ...ngoDesigns];
+        const uniqueDesigns = Array.from(
+          new Map(allDesigns.map(design => [design.id, design])).values()
+        );
+        
+        setCustomDesigns(uniqueDesigns);
+        console.log('Cart - Total unique designs loaded:', uniqueDesigns.length);
+      } catch (error) {
+        console.error('Error loading designs for cart:', error);
+    
+        const userDesigns = JSON.parse(localStorage.getItem('userDesigns') || '[]');
+        const ngoDesigns = JSON.parse(localStorage.getItem('ngoDesigns') || '[]');
+        setCustomDesigns([...userDesigns, ...ngoDesigns]);
+      }
+    };
+    
+    loadDesigns();
   }, []);
 
   const getProductById = (id: number) => {
-    // First check regular products
+
     const regularProduct = products.find((product) => product.id === id);
     if (regularProduct) return regularProduct;
     
-    // Then check custom designs
+  
     const customDesign = customDesigns.find((design) => design.id === id);
     return customDesign;
   };
@@ -34,10 +61,10 @@ const Cart = () => {
       if (product) {
         let price;
         if (product.pieceName) {
-          // Custom design with price as number
-          price = parseInt(product.price);
+      
+          price = parseInt(product.price.toString().replace(/[^\d]/g, ""));
         } else if (product.price) {
-          // Regular product with price string like "₦20,000"
+       
           price = parseInt(product.price.replace(/[^\d]/g, ""));
         } else {
           price = 0;
@@ -59,11 +86,11 @@ const Cart = () => {
         <div>
             <Header />
 
-           {/* Cart section */}
+         
       <section className="px-4 md:px-7 py-12">
         <div className="max-w-6xl mx-auto">
           {cartItems.length === 0 ? (
-            /* Empty cart state - centered */
+           
             <div className="text-center py-20">
               <h1 className="text-3xl font-bold text-black mb-8">
                 Shopping bag
@@ -98,9 +125,9 @@ const Cart = () => {
               </Button>
             </div>
           ) : (
-            /* Cart with items - grid layout */
+          
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Shopping bag section */}
+          
               <div className="lg:col-span-2">
                 <h1 className="text-3xl font-bold text-black mb-8">
                   Shopping bag
@@ -117,10 +144,10 @@ const Cart = () => {
                         className="border-b border-gray-200 pb-6"
                       >
                         <div className="flex gap-4">
-                          {/* Product image */}
+                        
                           <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 relative">
                             {product.pieceName ? (
-                              /* Custom Design Display */
+                            
                               <>
                                 <img 
                                   src="/src/assets/shirtfront.png" 
@@ -131,19 +158,21 @@ const Cart = () => {
                                            product.color === '#000000' ? 'brightness(0)' : 'none'
                                   }}
                                 />
-                                {product.frontDesign?.dataUrl && (
+                                {(product.frontDesign?.dataUrl || product.frontDesign?.url) && (
                                   <div 
                                     className="absolute"
                                     style={{ 
-                                      width: '36px', 
-                                      height: '50px',
+                                      width: '65%', 
+                                      height: 'auto',
+                                      maxWidth: '36px',
+                                      maxHeight: '50px',
                                       top: '50%',
                                       left: '50%',
                                       transform: 'translate(-50%, -50%)'
                                     }}
                                   >
                                     <img 
-                                      src={product.frontDesign.dataUrl} 
+                                      src={product.frontDesign?.url || product.frontDesign?.dataUrl} 
                                       alt="Design" 
                                       className="w-full h-full object-contain"
                                     />
@@ -151,7 +180,7 @@ const Cart = () => {
                                 )}
                               </>
                             ) : (
-                              /* Regular Product Display */
+                           
                               <img
                                 src={product.image}
                                 alt={product.title}
@@ -160,7 +189,6 @@ const Cart = () => {
                             )}
                           </div>
 
-                          {/* Product details */}
                           <div className="flex-1">
                             <h3 className="text-lg font-medium text-black mb-1">
                               {product.pieceName || product.title}
@@ -172,7 +200,6 @@ const Cart = () => {
                               {item.color} {item.size}
                             </p>
 
-                            {/* Quantity selector */}
                             <div className="mb-3">
                               <label className="text-sm text-black mb-2 block">
                                 Quantity
@@ -209,7 +236,6 @@ const Cart = () => {
                               </div>
                             </div>
 
-                            {/* Remove link */}
                             <button
                               onClick={() => removeItem(item.uniqueId)}
                               className="text-sm text-black hover:text-gray-600 transition-colors"
@@ -218,12 +244,11 @@ const Cart = () => {
                             </button>
                           </div>
 
-                          {/* Price */}
                           <div className="text-right">
                             <p className="text-lg font-medium text-black">
                               {formatPrice(
                                 product.pieceName ? 
-                                  parseInt(product.price) * item.quantity :
+                                  parseInt(product.price.toString().replace(/[^\d]/g, "")) * item.quantity :
                                   parseInt(product.price.replace(/[^\d]/g, "")) * item.quantity
                               )}
                             </p>
@@ -234,8 +259,7 @@ const Cart = () => {
                   })}
                 </div>
               </div>
-
-              {/* Summary section */}
+            
               <div className="lg:col-span-1">
                 <h2 className="text-3xl font-bold text-black mb-8">Summary</h2>
 

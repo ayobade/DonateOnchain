@@ -5,6 +5,7 @@ import Footer from '../component/Footer'
 const HowItWorks = () => {
     const [activeTab, setActiveTab] = useState<'customers' | 'ngos'>('customers')
 
+
     const customerSteps = [
         {
             number: '01',
@@ -14,7 +15,7 @@ const HowItWorks = () => {
         {
             number: '02',
             title: 'Choose a Product /Cause You Love',
-            description: 'Find a project or campaign that resonates with you from community upliftment to environmental care, adn you can also purchase any item you like'
+            description: 'Find a project or campaign that resonates with you from community upliftment to environmental care, and you can also purchase any item you like'
         },
         {
             number: '03',
@@ -37,7 +38,7 @@ const HowItWorks = () => {
         {
             number: '02',
             title: 'Set the Target Price',
-            description: 'Find a project or campaign that resonates with you from community upliftment to environmental care, adn you can also purchase any item you like'
+            description: 'Find a project or campaign that resonates with you from community upliftment to environmental care, and you can also purchase any item you like'
         },
         {
             number: '03',
@@ -59,14 +60,12 @@ const HowItWorks = () => {
             
             <section className="px-4 md:px-7 py-16">
                 <div className="max-w-6xl mx-auto">
-                    {/* Title */}
                     <div className="text-center mb-12">
                         <h1 className="text-5xl md:text-6xl font-bold">
                             How <span className="text-yellow-400">Donate.</span> Works
                         </h1>
                     </div>
 
-                    {/* Tabs */}
                     <div className="flex justify-center gap-4 mb-16">
                         <button
                             onClick={() => setActiveTab('customers')}
@@ -90,7 +89,6 @@ const HowItWorks = () => {
                         </button>
                     </div>
 
-                    {/* Steps Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
                         {steps.map((step, index) => (
                             <div
@@ -110,7 +108,6 @@ const HowItWorks = () => {
                         ))}
                     </div>
 
-                    {/* Disclaimer */}
                     <div className="border-t border-gray-300 pt-8">
                         <p className="text-center text-black text-base">
                             NOTE: You can only donate up to 20% to Campaigns after purchasing a design or product

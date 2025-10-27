@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useAccount } from 'wagmi'
 import Header from '../component/Header'
 import Footer from '../component/Footer'
 import Button from '../component/Button'
 import { ChevronDown, Upload, X, CheckCircle } from 'lucide-react'
+import { saveUserDesign, saveNGODesign, saveToGlobalDesigns, uploadDesignImageToFirebase } from '../utils/firebaseStorage'
 
 const CreateDesign = () => {
+    const { address } = useAccount()
     const [selectedType, setSelectedType] = useState('Shirt')
     const [selectedSizes, setSelectedSizes] = useState<string[]>([])
     const [quantity, setQuantity] = useState('1')
@@ -19,6 +22,7 @@ const CreateDesign = () => {
     const [selectedCampaign, setSelectedCampaign] = useState('')
     const [description, setDescription] = useState('')
     const [showSuccessModal, setShowSuccessModal] = useState(false)
+    const [showProcessingModal, setShowProcessingModal] = useState(false)
     const [countdown, setCountdown] = useState(15)
     const [isEditMode, setIsEditMode] = useState(false)
     const [editDesignId, setEditDesignId] = useState<number | null>(null)
@@ -28,7 +32,7 @@ const CreateDesign = () => {
     const location = useLocation()
     const countdownRef = useRef<NodeJS.Timeout | null>(null)
 
-    // Load edit design data if in edit mode
+   
     useEffect(() => {
         if (location.state?.editDesign) {
             const editDesign = location.state.editDesign
@@ -43,13 +47,14 @@ const CreateDesign = () => {
             setPieceName(editDesign.pieceName || '')
             setSelectedCampaign(editDesign.campaign || '')
             setDescription(editDesign.description || '')
-            setExistingFrontImage(editDesign.frontDesign?.dataUrl || null)
-            setExistingBackImage(editDesign.backDesign?.dataUrl || null)
-            setCurrentStep(1) // Start at step 1 for edit mode
+          
+            setExistingFrontImage(editDesign.frontDesign?.url || editDesign.frontDesign?.dataUrl || null)
+            setExistingBackImage(editDesign.backDesign?.url || editDesign.backDesign?.dataUrl || null)
+            setCurrentStep(1) 
         }
     }, [location.state])
 
-    // Cleanup interval on component unmount
+   
     useEffect(() => {
         return () => {
             if (countdownRef.current) {
@@ -72,24 +77,24 @@ const CreateDesign = () => {
     }
 
     const getColorFilter = (color: string) => {
-        // Use CSS filters to change the shirt color
+       
         if (color === '#FFFFFF') {
-            return 'none' // No filter for white - keep original image
+            return 'none' 
         }
         
         if (color === '#000000') {
-            return 'brightness(0)' // Make it black
+            return 'brightness(0)' 
         }
         
-        // For custom colors, we'll use a combination of filters
+       
         const colorMap: { [key: string]: string } = {
-            '#FF0000': 'hue-rotate(0deg) saturate(3) brightness(0.7)', // red
-            '#0000FF': 'hue-rotate(240deg) saturate(3) brightness(0.7)', // blue
-            '#00FF00': 'hue-rotate(120deg) saturate(3) brightness(0.7)', // green
-            '#FFFF00': 'hue-rotate(60deg) saturate(3) brightness(0.8)', // yellow
-            '#800080': 'hue-rotate(300deg) saturate(3) brightness(0.6)', // purple
-            '#FFA500': 'hue-rotate(30deg) saturate(3) brightness(0.8)', // orange
-            '#FFC0CB': 'hue-rotate(350deg) saturate(2) brightness(0.9)', // pink
+            '#FF0000': 'hue-rotate(0deg) saturate(3) brightness(0.7)', 
+            '#0000FF': 'hue-rotate(240deg) saturate(3) brightness(0.7)', 
+            '#00FF00': 'hue-rotate(120deg) saturate(3) brightness(0.7)', 
+            '#FFFF00': 'hue-rotate(60deg) saturate(3) brightness(0.8)', 
+            '#800080': 'hue-rotate(300deg) saturate(3) brightness(0.6)', 
+            '#FFA500': 'hue-rotate(30deg) saturate(3) brightness(0.8)', 
+            '#FFC0CB': 'hue-rotate(350deg) saturate(2) brightness(0.9)', 
         }
         
         return colorMap[color] || 'none'
@@ -188,7 +193,7 @@ const CreateDesign = () => {
                         canvas.height = height;
                         ctx.drawImage(img, 0, 0, width, height);
                         
-                        // Convert to blob with compression
+                       
                         canvas.toBlob((blob) => {
                             if (blob) {
                                 const url = URL.createObjectURL(blob);
@@ -196,7 +201,7 @@ const CreateDesign = () => {
                             } else {
                                 resolve(dataUrl);
                             }
-                        }, 'image/jpeg', 0.7); // 70% quality
+                        }, 'image/png'); 
                     };
                     img.onerror = () => resolve(dataUrl);
                     img.src = dataUrl;
@@ -206,9 +211,9 @@ const CreateDesign = () => {
             });
         };
         
-        // Create design object with image references
+       
         const createDesignData = async () => {
-            const designId = isEditMode ? editDesignId! : Date.now();
+            const designId = isEditMode ? editDesignId! : Date.now().toString();
             
             let frontDesignUrl = existingFrontImage;
             let backDesignUrl = existingBackImage;
@@ -241,6 +246,8 @@ const CreateDesign = () => {
                 description: description,
                 createdAt: isEditMode ? undefined : new Date().toISOString(),
                 isNgo: isNgo,
+                walletAddress: address || '',
+                connectedWalletAddress: address || '',
                 frontDesign: frontDesignUrl ? {
                     name: frontDesign?.name || 'front',
                     size: frontDesign?.size || 0,
@@ -258,36 +265,79 @@ const CreateDesign = () => {
             return designData;
         };
         
-        // Process and save design
-        createDesignData().then((designData) => {
-            // Store design in localStorage for persistence
+        createDesignData().then(async (designData) => {
+            try {
+                if (!address) {
+                    console.error('No wallet address found')
+                    return
+                }
+                
+                setShowProcessingModal(true)
+
+                const designId = designData.id
+                
+                let frontImageUrl = designData.frontDesign?.dataUrl || null
+                let backImageUrl = designData.backDesign?.dataUrl || null
+                
+                if (designData.frontDesign?.dataUrl) {
+                    const uploadedUrl = await uploadDesignImageToFirebase(designId.toString(), 'front', designData.frontDesign.dataUrl)
+                    if (uploadedUrl) {
+                        frontImageUrl = uploadedUrl
+                    } else {
+                        console.error('Failed to upload front image to Firebase Storage');
+                    }
+                }
+                
+                if (designData.backDesign?.dataUrl) {
+                    const uploadedUrl = await uploadDesignImageToFirebase(designId.toString(), 'back', designData.backDesign.dataUrl)
+                    if (uploadedUrl) {
+                        backImageUrl = uploadedUrl
+                    } else {
+                        console.error('Failed to upload back image to Firebase Storage');
+                    }
+                }
+                
             const existingDesigns = JSON.parse(localStorage.getItem(storageKey) || '[]')
             
-            if (isEditMode && editDesignId) {
-                // Update existing design
-                const designIndex = existingDesigns.findIndex((design: any) => design.id === editDesignId)
-                if (designIndex !== -1) {
-                    // Preserve original creation date
-                    designData.createdAt = existingDesigns[designIndex].createdAt
-                    existingDesigns[designIndex] = designData
-                }
-            } else {
-                // Add new design
-                existingDesigns.push(designData)
+            const designDataForFirebase = {
+                ...designData,
+                frontDesign: frontImageUrl ? {
+                    name: designData.frontDesign?.name || 'front',
+                    url: frontImageUrl,
+                    dataUrl: designData.frontDesign?.dataUrl
+                } : null,
+                backDesign: backImageUrl ? {
+                    name: designData.backDesign?.name || 'back',
+                    url: backImageUrl,
+                    dataUrl: designData.backDesign?.dataUrl
+                } : null
             }
             
+            if (isEditMode && editDesignId) {
+                const designIndex = existingDesigns.findIndex((design: any) => design.id.toString() === editDesignId.toString())
+                if (designIndex !== -1) {
+                    designDataForFirebase.createdAt = existingDesigns[designIndex].createdAt
+                    existingDesigns[designIndex] = designDataForFirebase
+                }
+            } else {
+                existingDesigns.push(designDataForFirebase)
+            }
             localStorage.setItem(storageKey, JSON.stringify(existingDesigns))
-            
-            // Store active tab preference
+                
+                if (isNgo) {
+                    await saveNGODesign(address, designId.toString(), designDataForFirebase)
+                } else {
+                    await saveUserDesign(address, designId.toString(), designDataForFirebase)
+                }
+                
+                await saveToGlobalDesigns(designId.toString(), designDataForFirebase)
+                
             localStorage.setItem('activeProfileTab', 'Created')
             
-            console.log(isEditMode ? 'Design updated:' : 'Design created:', designData)
-            
-            // Show success modal
+            setShowProcessingModal(false)
             setShowSuccessModal(true)
             setCountdown(15)
             
-            // Start countdown
             const redirectPath = isNgo ? '/ngo-profile' : '/user-profile'
             countdownRef.current = setInterval(() => {
                 setCountdown((prev) => {
@@ -296,29 +346,39 @@ const CreateDesign = () => {
                             clearInterval(countdownRef.current)
                             countdownRef.current = null
                         }
-                        console.log(`Auto redirecting to ${redirectPath}...`)
                         navigate(redirectPath)
                         return 0
                     }
                     return prev - 1
                 })
             }, 1000)
+            } catch (error) {
+                console.error('Error saving design to Firebase:', error)
+                setShowProcessingModal(false)
+                setShowSuccessModal(true)
+                setCountdown(15)
+            }
         }).catch((error) => {
             console.error('Error processing design:', error)
+            setShowProcessingModal(false)
         });
     }
     
     const handleContinueToProfile = () => {
-        // Clear countdown interval if it exists
         if (countdownRef.current) {
             clearInterval(countdownRef.current)
             countdownRef.current = null
         }
-        // Determine redirect path based on user type
         const isNgo = window.location.pathname.includes('/ngo-profile') || 
                      (location.state && location.state.fromNgo)
         const redirectPath = isNgo ? '/ngo-profile' : '/user-profile'
-        console.log(`Manual redirect to ${redirectPath}...`)
+        navigate(redirectPath)
+    }
+
+    const handleCancel = () => {
+        const isNgo = window.location.pathname.includes('/ngo-profile') || 
+                     (location.state && location.state.fromNgo)
+        const redirectPath = isNgo ? '/ngo-profile' : '/user-profile'
         navigate(redirectPath)
     }
 
@@ -353,8 +413,15 @@ const CreateDesign = () => {
             
             <section className="px-4 md:px-7 py-12">
                 <div className="max-w-7xl mx-auto">
-                    {/* Page Title */}
-                    <div className="text-center mb-8">
+                    <div className="text-center mb-8 relative">
+                        {isEditMode && (
+                            <button
+                                onClick={handleCancel}
+                                className="absolute left-0 top-0 p-2 hover:bg-gray-100 rounded-full transition-colors"
+                            >
+                                <X size={24} className="text-gray-600" />
+                            </button>
+                        )}
                         <h1 className="text-4xl font-bold text-black mb-2">
                             {isEditMode ? 'Edit Design' : 'Create Design'}
                         </h1>
@@ -363,7 +430,6 @@ const CreateDesign = () => {
                         </p>
                     </div>
                     
-                    {/* Steps */}
                     <div className="flex justify-center gap-8 mb-12">
                         <button 
                             onClick={() => handleStepClick(1)}
@@ -394,13 +460,10 @@ const CreateDesign = () => {
 
                     {currentStep === 1 ? (
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                            {/* T-shirt Mockups */}
                             <div className="lg:col-span-2">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                {/* Front T-shirt */}
                                 <div className="flex flex-col items-center">
                                     <div className="relative w-80 h-96 bg-white-100 rounded-lg flex items-center justify-center ">
-                                        {/* T-shirt background image */}
                                         <img 
                                             src="/src/assets/shirtfront.png" 
                                             alt="Shirt Front" 
@@ -408,12 +471,13 @@ const CreateDesign = () => {
                                             style={{ filter: getColorFilter(getCurrentColor()) }}
                                         />
                                         
-                                        {/* Upload area */}
                                         <div 
                                             className="absolute border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center p-2 cursor-pointer hover:border-gray-400 hover:bg-gray-50 transition-colors"
                                             style={{ 
-                                                width: '145px', 
-                                                height: '200px',
+                                                width: '65%', 
+                                                height: 'auto',
+                                                maxWidth: '145px',
+                                                maxHeight: '200px',
                                                 top: '50%',
                                                 left: '50%',
                                                 transform: 'translate(-50%, -50%)'
@@ -467,12 +531,8 @@ const CreateDesign = () => {
                                     )}
                                 </div>
 
-                                {/* Back T-shirt */}
                                 <div className="flex flex-col items-center">
                                     <div className="relative w-80 h-96 bg-white-100 rounded-lg flex items-center justify-center">
-                                        {/* T-shirt outline */}
-                                        
-                                        {/* T-shirt background image */}
                                         <img 
                                             src="/src/assets/shirtfront.png" 
                                             alt="Shirt Front" 
@@ -480,12 +540,13 @@ const CreateDesign = () => {
                                             style={{ filter: getColorFilter(getCurrentColor()) }}
                                         />
                                         
-                                        {/* Upload area */}
                                         <div 
                                             className="absolute border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center p-2 cursor-pointer hover:border-gray-400 hover:bg-gray-50 transition-colors"
                                             style={{ 
-                                                width: '145px', 
-                                                height: '200px',
+                                                width: '65%', 
+                                                height: 'auto',
+                                                maxWidth: '145px',
+                                                maxHeight: '200px',
                                                 top: '50%',
                                                 left: '50%',
                                                 transform: 'translate(-50%, -50%)'
@@ -541,11 +602,9 @@ const CreateDesign = () => {
                             </div>
                         </div>
 
-                        {/* Edit Panel */}
                         <div className="bg-white border border-gray-200 rounded-lg p-6">
                             <h2 className="text-2xl font-bold text-black mb-6">Edit</h2>
                             
-                            {/* Type Dropdown */}
                             <div className="mb-6">
                                 <label className="block text-sm font-medium text-black mb-2">Type</label>
                                 <div className="relative">
@@ -564,11 +623,9 @@ const CreateDesign = () => {
                                 </div>
                             </div>
 
-                            {/* Size Selection */}
                             <div className="mb-6">
                                 <label className="block text-sm font-medium text-black mb-2">Size</label>
                                 <div className="space-y-3">
-                                    {/* Select All / Clear All buttons */}
                                     <div className="flex gap-2">
                                         <button
                                             type="button"
@@ -586,7 +643,6 @@ const CreateDesign = () => {
                                         </button>
                                     </div>
                                     
-                                    {/* Size checkboxes */}
                                     <div className="grid grid-cols-3 gap-2">
                                         {['XS', 'S', 'M', 'L', 'XL', 'XXL'].map((size) => (
                                             <label key={size} className="flex items-center space-x-2 cursor-pointer">
@@ -601,7 +657,6 @@ const CreateDesign = () => {
                                         ))}
                                     </div>
                                     
-                                    {/* Selected sizes display */}
                                     {selectedSizes.length > 0 && (
                                         <div className="text-sm text-gray-600">
                                             Selected: {selectedSizes.join(', ')}
@@ -610,7 +665,6 @@ const CreateDesign = () => {
                                 </div>
                             </div>
 
-                            {/* Quantity Input */}
                             <div className="mb-6">
                                 <label className="block text-sm font-medium text-black mb-2">Quantity</label>
                                 <input
@@ -623,7 +677,6 @@ const CreateDesign = () => {
                                 />
                             </div>
 
-                            {/* Color Selection */}
                             <div className="mb-6">
                                 <label className="block text-sm font-medium text-black mb-3">Select Colour</label>
                                 <div className="flex gap-3 mb-3">
@@ -641,7 +694,6 @@ const CreateDesign = () => {
                                     ))}
                                 </div>
                                 
-                                {/* Custom Color Picker */}
                                 <div className="flex items-center gap-2">
                                     <input
                                         type="color"
@@ -656,7 +708,6 @@ const CreateDesign = () => {
                                 </div>
                             </div>
 
-                            {/* Price Input */}
                             <div className="mb-8">
                                 <label className="block text-sm font-medium text-black mb-2">Price</label>
                                 <div className="relative">
@@ -670,7 +721,6 @@ const CreateDesign = () => {
                                 </div>
                             </div>
 
-                            {/* Next Button */}
                             <Button
                                 variant="primary-bw"
                                 size="lg"
@@ -683,15 +733,11 @@ const CreateDesign = () => {
                         </div>
                     </div>
                     ) : (
-                        /* Step 2: Edit and Launch */
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                            {/* T-shirt Mockups */}
                             <div className="lg:col-span-2">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    {/* Front T-shirt */}
                                     <div className="flex flex-col items-center">
                                         <div className="relative w-80 h-96 bg-white-100 rounded-lg flex items-center justify-center">
-                                            {/* T-shirt background image */}
                                             <img 
                                                 src="/src/assets/shirtfront.png" 
                                                 alt="Shirt Front" 
@@ -699,7 +745,6 @@ const CreateDesign = () => {
                                                 style={{ filter: getColorFilter(getCurrentColor()) }}
                                             />
                                             
-                                            {/* Upload area */}
                                             <div 
                                                 className="absolute border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center p-2 cursor-pointer hover:border-gray-400 hover:bg-gray-50 transition-colors"
                                                 style={{ 
@@ -758,10 +803,8 @@ const CreateDesign = () => {
                                         )}
                                     </div>
 
-                                    {/* Back T-shirt */}
                                     <div className="flex flex-col items-center">
                                         <div className="relative w-80 h-96 bg-white-100 rounded-lg flex items-center justify-center">
-                                            {/* T-shirt background image */}
                                             <img 
                                                 src="/src/assets/shirtfront.png" 
                                                 alt="Shirt Front" 
@@ -769,7 +812,6 @@ const CreateDesign = () => {
                                                 style={{ filter: getColorFilter(getCurrentColor()) }}
                                             />
                                             
-                                            {/* Upload area */}
                                             <div 
                                                 className="absolute border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center p-2 cursor-pointer hover:border-gray-400 hover:bg-gray-50 transition-colors"
                                                 style={{ 
@@ -830,9 +872,7 @@ const CreateDesign = () => {
                                 </div>
                             </div>
 
-                            {/* Edit Panel */}
                             <div className="bg-white border border-gray-200 rounded-lg p-6">
-                                {/* Name of Piece */}
                                 <div className="mb-6">
                                     <input
                                         type="text"
@@ -843,7 +883,6 @@ const CreateDesign = () => {
                                     />
                                 </div>
 
-                                {/* Campaign Types Dropdown */}
                                 <div className="mb-6">
                                     <div className="relative">
                                         <select
@@ -862,7 +901,6 @@ const CreateDesign = () => {
                                     </div>
                                 </div>
 
-                                {/* Description */}
                                 <div className="mb-8">
                                     <label className="block text-sm font-medium text-black mb-2">Description</label>
                                     <textarea
@@ -873,7 +911,6 @@ const CreateDesign = () => {
                                     />
                                 </div>
 
-                                {/* Back and Finish Buttons */}
                                 <div className="flex gap-3">
                                     <Button
                                         variant="secondary"
@@ -883,6 +920,16 @@ const CreateDesign = () => {
                                     >
                                         Back
                                     </Button>
+                                    {isEditMode && (
+                                        <Button
+                                            variant="secondary"
+                                            size="lg"
+                                            onClick={handleCancel}
+                                            className="rounded-lg py-4 px-6 text-lg"
+                                        >
+                                            Cancel
+                                        </Button>
+                                    )}
                                     <Button
                                         variant="primary-bw"
                                         size="lg"
@@ -890,7 +937,7 @@ const CreateDesign = () => {
                                         className="flex-1 rounded-lg py-4 text-lg"
                                         disabled={!isStep2Valid()}
                                     >
-                                        Finish
+                                        {isEditMode ? 'Update Design' : 'Finish'}
                                     </Button>
                                 </div>
                             </div>
@@ -901,7 +948,16 @@ const CreateDesign = () => {
 
             <Footer />
             
-            {/* Success Modal */}
+            {showProcessingModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-2xl p-8 max-w-md mx-4 text-center">
+                        <div className="w-16 h-16 border-4 border-black border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                        <h2 className="text-2xl font-bold text-black mb-2">Creating Your Design...</h2>
+                        <p className="text-gray-600 mb-6">Please wait while we upload your design and save it to the blockchain.</p>
+                    </div>
+                </div>
+            )}
+            
             {showSuccessModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                     <div className="bg-white rounded-2xl p-8 max-w-md mx-4 text-center">
@@ -925,3 +981,5 @@ const CreateDesign = () => {
 }
 
 export default CreateDesign
+
+

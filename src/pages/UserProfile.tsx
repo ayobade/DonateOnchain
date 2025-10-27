@@ -1,10 +1,12 @@
 import Header from "../component/Header";
 import Footer from "../component/Footer";
 import Button from "../component/Button";
-import { Plus, X, Camera, Copy, Check } from "lucide-react";
+import { SkeletonProfile } from "../component/Skeleton";
+import { Plus, X, Camera, Copy, Check, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAccount } from "wagmi";
+import { getUserDesigns, getUserDonations, getUserPurchases, saveUserProfileWithImages, getUserProfile, migrateDesignImagesToFirebase } from '../utils/firebaseStorage';
 
 const UserProfile = () => {
     const navigate = useNavigate();
@@ -26,6 +28,8 @@ const UserProfile = () => {
     const [bannerImage, setBannerImage] = useState<string | null>(null);
     const [profileImage, setProfileImage] = useState<string | null>(null);
     const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
     const [statistics, setStatistics] = useState({
         causesSupported: 0,
         totalDonated: 0,
@@ -33,8 +37,61 @@ const UserProfile = () => {
         totalDesigns: 0
     });
 
-    // Load profile data from localStorage
+   
     useEffect(() => {
+        const loadProfile = async () => {
+            console.log('Loading profile - address:', address, 'isConnected:', isConnected);
+            
+            if (address && isConnected) {
+                try {
+                    const firebaseProfile = await getUserProfile(address);
+                    console.log('Firebase profile loaded:', firebaseProfile);
+                    
+                    if (firebaseProfile) {
+                        console.log('Setting profile data from Firebase:', {
+                            hasBannerImage: !!firebaseProfile.bannerImage,
+                            hasProfileImage: !!firebaseProfile.profileImage,
+                            bannerImageLength: firebaseProfile.bannerImage?.length || 0,
+                            profileImageLength: firebaseProfile.profileImage?.length || 0
+                        });
+                        setProfileData({
+                            name: firebaseProfile.name || 'User',
+                            bio: firebaseProfile.bio || '',
+                            bannerImage: firebaseProfile.bannerImage || null,
+                            profileImage: firebaseProfile.profileImage || null
+                        });
+                    } else {
+                        console.log('No Firebase profile found, checking localStorage...');
+                       
+                        const savedProfile = localStorage.getItem('userProfile');
+                        if (savedProfile) {
+                            const profile = JSON.parse(savedProfile);
+                            console.log('Loaded from localStorage:', profile);
+                            setProfileData({
+                                name: profile.name || 'User',
+                                bio: profile.bio || '',
+                                bannerImage: profile.bannerImage || null,
+                                profileImage: profile.profileImage || null
+                            });
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error loading profile from Firebase:', error);
+                    
+                    const savedProfile = localStorage.getItem('userProfile');
+                    if (savedProfile) {
+                        const profile = JSON.parse(savedProfile);
+                        setProfileData({
+                            name: profile.name || 'User',
+                            bio: profile.bio || '',
+                            bannerImage: profile.bannerImage || null,
+                            profileImage: profile.profileImage || null
+                        });
+                    }
+                }
+            } else {
+                console.log('Not connected, loading from localStorage...');
+                
         const savedProfile = localStorage.getItem('userProfile');
         if (savedProfile) {
             const profile = JSON.parse(savedProfile);
@@ -45,40 +102,109 @@ const UserProfile = () => {
                 profileImage: profile.profileImage || null
             });
         }
-    }, []);
+            }
+        };
+        
+        loadProfile();
+    }, [address, isConnected]);
 
-    // Load created designs from localStorage
+   
     useEffect(() => {
+        const loadDesigns = async () => {
+            if (address && isConnected) {
+                try {
+                   
+                    let firebaseDesigns = await getUserDesigns(address);
+                    
+                    
+                    const designsToMigrate = firebaseDesigns.filter((design: any) => 
+                        (design.frontDesign?.dataUrl && !design.frontDesign?.url) || 
+                        (design.backDesign?.dataUrl && !design.backDesign?.url)
+                    );
+                    
+                   
+                    if (designsToMigrate.length > 0) {
+                        console.log(`Migrating ${designsToMigrate.length} designs to Firebase Storage...`);
+                        await Promise.all(
+                            designsToMigrate.map((design: any) => migrateDesignImagesToFirebase(design, address, 'user'))
+                        );
+                        
+                       
+                        firebaseDesigns = await getUserDesigns(address);
+                    }
+                    
+                    if (firebaseDesigns && firebaseDesigns.length > 0) {
+                       
+                        const formattedDesigns = firebaseDesigns.map((design: any) => ({
+                            id: parseInt(design.id),
+                            ...design
+                        }));
+                        setCreatedDesigns(formattedDesigns);
+                    } else {
+                       
+                        const savedDesigns = JSON.parse(localStorage.getItem('userDesigns') || '[]');
+                        setCreatedDesigns(savedDesigns);
+                    }
+                } catch (error) {
+                    console.error('Error loading designs from Firebase:', error);
+                    
+                    const savedDesigns = JSON.parse(localStorage.getItem('userDesigns') || '[]');
+                    setCreatedDesigns(savedDesigns);
+                }
+            } else {
+                
         const savedDesigns = JSON.parse(localStorage.getItem('userDesigns') || '[]');
         setCreatedDesigns(savedDesigns);
+            }
         
-        // Set active tab if stored
+
         const savedTab = localStorage.getItem('activeProfileTab');
         if (savedTab && (savedTab === 'NFTs' || savedTab === 'History' || savedTab === 'Created')) {
             setActiveCategory(savedTab as 'NFTs' | 'History' || 'Created');
         }
-    }, []);
+        };
+        
+        loadDesigns();
+    }, [address, isConnected]);
 
-    // Calculate statistics from donations and purchases
     useEffect(() => {
-        const savedDesigns = JSON.parse(localStorage.getItem('userDesigns') || '[]');
+        const calculateStats = async () => {
+            let donationHistory: any[] = [];
+            let purchaseHistory: any[] = [];
+            
+            if (address && isConnected) {
+                try {
+                    donationHistory = await getUserDonations(address);
+                    const allPurchases = await getUserPurchases(address);
+                    purchaseHistory = allPurchases.filter((purchase: any) => 
+                        purchase.creatorWallet?.toLowerCase() === address.toLowerCase() ||
+                        purchase.creatorWallet === ''
+                    );
+                } catch (error) {
+                    console.error('Error loading stats from Firebase:', error);
+                    donationHistory = JSON.parse(localStorage.getItem('userDonations') || '[]');
+                    const allPurchases = JSON.parse(localStorage.getItem('userPurchases') || '[]');
+                    purchaseHistory = allPurchases.filter((purchase: any) => 
+                        purchase.creatorWallet?.toLowerCase() === address.toLowerCase()
+                    );
+                }
+            } else {
+                donationHistory = JSON.parse(localStorage.getItem('userDonations') || '[]');
+                const allPurchases = JSON.parse(localStorage.getItem('userPurchases') || '[]');
+                if (address) {
+                    purchaseHistory = allPurchases.filter((purchase: any) => 
+                        purchase.creatorWallet?.toLowerCase() === address.toLowerCase()
+                    );
+                }
+            }
         
-        // Get donation history (when user donated to causes)
-        const donationHistory = JSON.parse(localStorage.getItem('userDonations') || '[]');
-        
-        // Get purchase history (when someone purchased the user's designs)
-        const purchaseHistory = JSON.parse(localStorage.getItem('userPurchases') || '[]');
-        
-        // Calculate causes supported (unique campaigns from donations)
         const uniqueCampaigns = new Set(donationHistory.map((donation: any) => donation.campaign).filter(Boolean));
         
-        // Calculate total donated (sum of all donations)
         const totalDonated = donationHistory.reduce((sum: number, donation: any) => {
             const amount = parseFloat(donation.amount?.replace(/[^\d.]/g, '') || '0');
             return sum + amount;
         }, 0);
         
-        // Calculate total profit (sum of purchases of user's designs)
         const totalProfit = purchaseHistory.reduce((sum: number, purchase: any) => {
             const amount = parseFloat(purchase.amount?.replace(/[^\d.]/g, '') || '0');
             return sum + amount;
@@ -88,9 +214,13 @@ const UserProfile = () => {
             causesSupported: uniqueCampaigns.size,
             totalDonated: totalDonated,
             totalProfit: totalProfit,
-            totalDesigns: savedDesigns.length
+                totalDesigns: createdDesigns.length
         });
-    }, [createdDesigns]);
+        setIsLoading(false);
+        };
+        
+        calculateStats();
+    }, [createdDesigns, address, isConnected]);
 
     const handleCategoryChange = (category: 'NFTs' | 'History' | 'Created') => {
         setActiveCategory(category);
@@ -121,16 +251,30 @@ const UserProfile = () => {
     };
 
     const handleCloseModal = () => {
+        if (!isSaving) {
         setIsEditModalOpen(false);
+        }
     };
 
-    const handleSaveProfile = () => {
+    const handleSaveProfile = async () => {
+        setIsSaving(true);
+        
         const updatedProfile = {
             name: formData.name,
             bio: formData.bio,
             bannerImage: bannerImage || profileData.bannerImage,
             profileImage: profileImage || profileData.profileImage
         };
+        
+        console.log('Saving profile:', { 
+            name: updatedProfile.name, 
+            bio: updatedProfile.bio,
+            hasBannerImage: !!updatedProfile.bannerImage,
+            hasProfileImage: !!updatedProfile.profileImage,
+            bannerImageLength: updatedProfile.bannerImage?.length || 0,
+            profileImageLength: updatedProfile.profileImage?.length || 0
+        });
+        console.log('Address:', address, 'isConnected:', isConnected);
         
         setProfileData(prev => ({
             ...prev,
@@ -141,6 +285,21 @@ const UserProfile = () => {
         }));
         
         localStorage.setItem('userProfile', JSON.stringify(updatedProfile));
+        console.log('Saved to localStorage');
+
+        if (address && isConnected) {
+            try {
+                console.log('Attempting to save to Firebase with images...');
+                const result = await saveUserProfileWithImages(address, updatedProfile);
+                console.log('Save result:', result);
+            } catch (error) {
+                console.error('Error saving profile to Firebase:', error);
+            }
+        } else {
+            console.log('Not saving to Firebase - address or connection missing');
+        }
+        
+        setIsSaving(false);
         setIsEditModalOpen(false);
       
         setShowSuccessMessage(true);
@@ -178,6 +337,16 @@ const UserProfile = () => {
             reader.readAsDataURL(file);
         }
     };
+
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-white">
+                <Header />
+                <SkeletonProfile />
+                <Footer />
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-white">
@@ -351,7 +520,7 @@ const UserProfile = () => {
                                     >
                                         <div className="rounded-2xl bg-[#eeeeee] mb-4">
                                             <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center relative">
-                                                {/* T-shirt mockup background */}
+                                             
                                                 <img 
                                                     src="/src/assets/shirtfront.png" 
                                                     alt="Shirt Mockup" 
@@ -362,28 +531,30 @@ const UserProfile = () => {
                                                     }}
                                                 />
                                                 
-                                                {/* Uploaded design overlay */}
-                                                {design.frontDesign?.dataUrl && (
+                                               
+                                                {(design.frontDesign?.dataUrl || design.frontDesign?.url) && (
                                                     <div 
                                                         className="absolute"
                                                         style={{ 
-                                                            width: '145px', 
-                                                            height: '200px',
+                                                            width: '65%', 
+                                                            height: 'auto',
+                                                            maxWidth: '145px',
+                                                            maxHeight: '200px',
                                                             top: '50%',
                                                             left: '50%',
                                                             transform: 'translate(-50%, -50%)'
                                                         }}
                                                     >
                                                         <img 
-                                                            src={design.frontDesign.dataUrl} 
+                                                            src={design.frontDesign?.url || design.frontDesign?.dataUrl} 
                                                             alt="Design" 
                                                             className="w-full h-full object-contain"
                                                         />
                                                     </div>
                                                 )}
                                                 
-                                                {/* Fallback if no design */}
-                                                {!design.frontDesign?.dataUrl && (
+                                                    
+                                                {!(design.frontDesign?.dataUrl || design.frontDesign?.url) && (
                                                     <div className="text-center text-gray-500">
                                                         <div className="text-4xl mb-2">👕</div>
                                                         <p className="text-sm">{design.type}</p>
@@ -452,8 +623,16 @@ const UserProfile = () => {
                                     variant="primary-bw" 
                                     size="sm"
                                     onClick={handleSaveProfile}
+                                    disabled={isSaving}
                                 >
-                                    Save
+                                    {isSaving ? (
+                                        <>
+                                            <Loader2 className="animate-spin" size={16} />
+                                            Saving...
+                                        </>
+                                    ) : (
+                                        'Save'
+                                    )}
                                 </Button>
                             </div>
                             

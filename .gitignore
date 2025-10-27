@@ -13,6 +13,13 @@ dist-ssr
 *.local
 
 .env
+firestore.rules
+storage.rules
+firestore.rules
+ngos.json
+.env.local
+.env.example
+
 
 # Editor directories and files
 .vscode/*

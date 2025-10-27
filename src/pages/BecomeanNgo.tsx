@@ -5,6 +5,7 @@ import { reownAppKit } from '../config/reownConfig'
 import Header from '../component/Header'
 import Footer from '../component/Footer'
 import { ChevronDown, Upload, CheckCircle, Clock } from 'lucide-react'
+import { saveNgoApplication, getNgoApplicationByWallet, uploadFileToFirebase } from '../utils/firebaseStorage'
 
 const BecomeanNgo = () => {
     const navigate = useNavigate()
@@ -12,31 +13,48 @@ const BecomeanNgo = () => {
     const [hasAlreadyApplied, setHasAlreadyApplied] = useState(false)
     const [existingNgoData, setExistingNgoData] = useState<any>(null)
     
-    // Check if user has already applied (based on wallet address)
+ 
     useEffect(() => {
-        if (!isConnected || !address) {
-            setHasAlreadyApplied(false)
-            setExistingNgoData(null)
-            return
+        const checkExistingApplication = async () => {
+            if (!isConnected || !address) {
+                setHasAlreadyApplied(false)
+                setExistingNgoData(null)
+                return
+            }
+            
+           
+            try {
+                const firebaseApplication = await getNgoApplicationByWallet(address)
+                if (firebaseApplication) {
+                    setHasAlreadyApplied(true)
+                    setExistingNgoData(firebaseApplication)
+                    return
+                }
+            } catch (error) {
+                console.error('Error checking Firebase for NGO application:', error)
+            }
+            
+            
+            const ngos = JSON.parse(localStorage.getItem('ngos') || '[]')
+           
+            const userNgo = ngos.find((ngo: any) => 
+                ngo.connectedWalletAddress?.toLowerCase() === address.toLowerCase() ||
+                ngo.walletAddress?.toLowerCase() === address.toLowerCase()
+            )
+            
+            if (userNgo) {
+                setHasAlreadyApplied(true)
+                setExistingNgoData(userNgo)
+            } else {
+                setHasAlreadyApplied(false)
+                setExistingNgoData(null)
+            }
         }
         
-        const ngos = JSON.parse(localStorage.getItem('ngos') || '[]')
-        // Find NGO application that matches the connected wallet address
-        const userNgo = ngos.find((ngo: any) => 
-            ngo.connectedWalletAddress?.toLowerCase() === address.toLowerCase() ||
-            ngo.walletAddress?.toLowerCase() === address.toLowerCase()
-        )
-        
-        if (userNgo) {
-            setHasAlreadyApplied(true)
-            setExistingNgoData(userNgo)
-        } else {
-            setHasAlreadyApplied(false)
-            setExistingNgoData(null)
-        }
+        checkExistingApplication()
     }, [address, isConnected])
     
-    // Form state
+  
     const [currentSection, setCurrentSection] = useState(1)
     const [ngoName, setNgoName] = useState('')
     const [missionStatement, setMissionStatement] = useState('')
@@ -48,7 +66,6 @@ const BecomeanNgo = () => {
     const [registrationCert, setRegistrationCert] = useState<File | null>(null)
     const [proofOfAddress, setProofOfAddress] = useState<File | null>(null)
     const [organizerId, setOrganizerId] = useState<File | null>(null)
-    const [preferredNetwork, setPreferredNetwork] = useState('')
     const [accuracyConfirmed, setAccuracyConfirmed] = useState(false)
     const [policyAccepted, setPolicyAccepted] = useState(false)
     const [showSuccessModal, setShowSuccessModal] = useState(false)
@@ -63,7 +80,6 @@ const BecomeanNgo = () => {
         'Others'
     ]
 
-    const networkOptions = ['Hedera', 'Ethereum',]
 
     const handleCategoryToggle = (category: string) => {
         setCategories(prev => 
@@ -108,41 +124,64 @@ const BecomeanNgo = () => {
     }
 
     const isSection3Valid = () => {
-        return !!address && preferredNetwork !== ''
+        return !!address
     }
 
     const isSection4Valid = () => {
         return accuracyConfirmed && policyAccepted
     }
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (!address) return
         
-        const ngoData = {
-            id: Date.now(),
-            ngoName,
-            missionStatement,
-            categories,
-            country,
-            officeAddress,
-            contactEmail,
-            websiteLink,
-            walletAddress: address,
-            preferredNetwork,
-            connectedWalletAddress: address,
-            verified: false,
-            createdAt: new Date().toISOString()
-        }
+        try {
+            let registrationCertUrl = null
+            let proofOfAddressUrl = null
+            let organizerIdUrl = null
 
-        const existingNgos = JSON.parse(localStorage.getItem('ngos') || '[]')
-        existingNgos.push(ngoData)
-        localStorage.setItem('ngos', JSON.stringify(existingNgos))
+            if (registrationCert) {
+                registrationCertUrl = await uploadFileToFirebase(address, registrationCert, 'registrationCert')
+            }
+            if (proofOfAddress) {
+                proofOfAddressUrl = await uploadFileToFirebase(address, proofOfAddress, 'proofOfAddress')
+            }
+            if (organizerId) {
+                organizerIdUrl = await uploadFileToFirebase(address, organizerId, 'organizerId')
+            }
+
+            const ngoData = {
+                id: Date.now(),
+                ngoName,
+                missionStatement,
+                categories,
+                country,
+                officeAddress,
+                contactEmail,
+                websiteLink,
+                walletAddress: address,
+                connectedWalletAddress: address,
+                registrationCertUrl,
+                proofOfAddressUrl,
+                organizerIdUrl,
+                verified: false,
+                createdAt: new Date().toISOString()
+            }
+
+            const existingNgos = JSON.parse(localStorage.getItem('ngos') || '[]')
+            existingNgos.push(ngoData)
+            localStorage.setItem('ngos', JSON.stringify(existingNgos))
+
+            await saveNgoApplication(ngoData)
+            console.log('NGO application saved to Firebase')
+        } catch (error) {
+            console.error('Error saving NGO application to Firebase:', error)
+        }
 
         setShowSuccessModal(true)
     }
 
     const nextSection = () => {
-        if (currentSection < 4) {
+        if (currentSection < 3) {
             setCurrentSection(currentSection + 1)
         }
     }
@@ -167,7 +206,7 @@ const BecomeanNgo = () => {
         <div>
             <Header />
             
-            {/* Wallet Not Connected Message */}
+          
             {!isConnected && (
                 <section className="px-4 md:px-7 py-20 bg-gray-50 min-h-[60vh] flex items-center">
                     <div className="max-w-2xl mx-auto w-full">
@@ -194,7 +233,7 @@ const BecomeanNgo = () => {
                 </section>
             )}
 
-            {/* Already Applied Message */}
+          
             {isConnected && hasAlreadyApplied && (
                 <section className="px-4 md:px-7 py-20 bg-gray-50 min-h-[60vh] flex items-center">
                     <div className="max-w-2xl mx-auto w-full">
@@ -240,11 +279,11 @@ const BecomeanNgo = () => {
                 </section>
             )}
 
-            {/* Application Form */}
+          
             {isConnected && !hasAlreadyApplied && (
                 <section className="px-4 md:px-7 py-12 bg-gray-50">
                 <div className="max-w-4xl mx-auto">
-                    {/* Page Title */}
+                
                     <div className="text-center mb-8">
                         <h1 className="text-4xl font-bold text-black mb-2">
                             Become a Verified NGO on DonateOnchain
@@ -254,7 +293,7 @@ const BecomeanNgo = () => {
                         </p>
                     </div>
 
-                    {/* Progress Indicator */}
+                
                     <div className="flex justify-center mb-8 gap-2">
                         {[1, 2, 3, 4].map((section) => (
                             <div key={section} className="flex items-center">
@@ -274,12 +313,12 @@ const BecomeanNgo = () => {
                         ))}
                     </div>
 
-                    {/* Section 1: Organization Details */}
+                  
                     {currentSection === 1 && (
                         <div className="bg-white rounded-2xl p-8 shadow-sm">
                             <h2 className="text-2xl font-bold text-black mb-6">📝 Section 1: Organization Details</h2>
                             
-                            {/* NGO Name */}
+                          
                             <div className="mb-6">
                                 <label className="block text-sm font-medium text-black mb-2">
                                     1. NGO Name <span className="text-red-500">*</span>
@@ -293,7 +332,7 @@ const BecomeanNgo = () => {
                                 />
                             </div>
 
-                            {/* Mission Statement */}
+                          
                             <div className="mb-6">
                                 <label className="block text-sm font-medium text-black mb-2">
                                     2. Mission Statement / Description <span className="text-red-500">*</span>
@@ -309,7 +348,7 @@ const BecomeanNgo = () => {
                                 <p className="text-sm text-gray-500 mt-1">{missionStatement.length}/300 characters</p>
                             </div>
 
-                            {/* Category */}
+                          
                             <div className="mb-6">
                                 <label className="block text-sm font-medium text-black mb-2">
                                     3. Category <span className="text-red-500">*</span>
@@ -329,7 +368,7 @@ const BecomeanNgo = () => {
                                 </div>
                             </div>
 
-                            {/* Country */}
+                        
                             <div className="mb-6">
                                 <label className="block text-sm font-medium text-black mb-2">
                                     4. Country of Operation <span className="text-red-500">*</span>
@@ -352,7 +391,7 @@ const BecomeanNgo = () => {
                                 </div>
                             </div>
 
-                            {/* Office Address */}
+                          
                             <div className="mb-6">
                                 <label className="block text-sm font-medium text-black mb-2">
                                     5. Office Address <span className="text-red-500">*</span>
@@ -366,7 +405,7 @@ const BecomeanNgo = () => {
                                 />
                             </div>
 
-                            {/* Contact Email */}
+                          
                             <div className="mb-6">
                                 <label className="block text-sm font-medium text-black mb-2">
                                     6. Contact Email <span className="text-red-500">*</span>
@@ -380,7 +419,6 @@ const BecomeanNgo = () => {
                                 />
                             </div>
 
-                            {/* Website */}
                             <div className="mb-6">
                                 <label className="block text-sm font-medium text-black mb-2">
                                     7. Website or Social Media Link (Optional)
@@ -396,12 +434,12 @@ const BecomeanNgo = () => {
                         </div>
                     )}
 
-                    {/* Section 2: Verification Documents */}
+                
                     {currentSection === 2 && (
                         <div className="bg-white rounded-2xl p-8 shadow-sm">
                             <h2 className="text-2xl font-bold text-black mb-6">📁 Section 2: Verification Documents</h2>
                             
-                            {/* Registration Certificate */}
+                          
                             <div className="mb-6">
                                 <label className="block text-sm font-medium text-black mb-2">
                                     8. Registration Certificate <span className="text-red-500">*</span>
@@ -431,7 +469,7 @@ const BecomeanNgo = () => {
                                 </div>
                             </div>
 
-                            {/* Proof of Address */}
+                       
                             <div className="mb-6">
                                 <label className="block text-sm font-medium text-black mb-2">
                                     9. Proof of Address / Utility Bill <span className="text-red-500">*</span>
@@ -461,7 +499,7 @@ const BecomeanNgo = () => {
                                 </div>
                             </div>
 
-                            {/* Identity of Organization Head */}
+                         
                             <div className="mb-6">
                                 <label className="block text-sm font-medium text-black mb-2">
                                     10. Identity of Organization Head (Optional)
@@ -493,12 +531,12 @@ const BecomeanNgo = () => {
                         </div>
                     )}
 
-                    {/* Section 3: Wallet Setup */}
+                  
                     {currentSection === 3 && (
                         <div className="bg-white rounded-2xl p-8 shadow-sm">
                             <h2 className="text-2xl font-bold text-black mb-6">💳 Section 3: Wallet Setup</h2>
                             
-                            {/* Connect Wallet */}
+                         
                             <div className="mb-6">
                                 <label className="block text-sm font-medium text-black mb-2">
                                     11. Connect Your Wallet <span className="text-red-500">*</span>
@@ -517,36 +555,15 @@ const BecomeanNgo = () => {
                                 )}
                             </div>
 
-                            {/* Preferred Network */}
-                            <div className="mb-6">
-                                <label className="block text-sm font-medium text-black mb-2">
-                                    12. Preferred Network <span className="text-red-500">*</span>
-                                </label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    {networkOptions.map((network) => (
-                                        <button
-                                            key={network}
-                                            onClick={() => setPreferredNetwork(network)}
-                                            className={`px-4 py-3 border-2 rounded-lg font-medium transition-colors ${
-                                                preferredNetwork === network
-                                                    ? 'border-black bg-black text-white'
-                                                    : 'border-gray-300 text-black hover:border-gray-400'
-                                            }`}
-                                        >
-                                            {network}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
                         </div>
                     )}
 
-                    {/* Section 4: Review & Confirmation */}
+                   
                     {currentSection === 4 && (
                         <div className="bg-white rounded-2xl p-8 shadow-sm">
                             <h2 className="text-2xl font-bold text-black mb-6">✅ Section 4: Review & Confirmation</h2>
                             
-                            {/* Review Information */}
+                          
                             <div className="mb-6">
                                 <label className="block text-sm font-medium text-black mb-2">
                                     13. Review Your Information
@@ -557,11 +574,10 @@ const BecomeanNgo = () => {
                                     <p><strong>Categories:</strong> {categories.join(', ')}</p>
                                     <p><strong>Country:</strong> {country}</p>
                                     <p><strong>Email:</strong> {contactEmail}</p>
-                                    <p><strong>Network:</strong> {preferredNetwork}</p>
                                 </div>
                             </div>
 
-                            {/* Terms & Conditions */}
+                        
                             <div className="mb-6">
                                 <label className="block text-sm font-medium text-black mb-2">
                                     14. Terms & Conditions
@@ -590,7 +606,7 @@ const BecomeanNgo = () => {
                         </div>
                     )}
 
-                    {/* Navigation Buttons */}
+              
                     <div className="flex justify-between mt-8">
                         <button
                             onClick={prevSection}
@@ -634,7 +650,7 @@ const BecomeanNgo = () => {
             </section>
             )}
 
-            {/* Success Modal */}
+          
             {showSuccessModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                     <div className="bg-white rounded-2xl p-8 max-w-md mx-4 text-center">

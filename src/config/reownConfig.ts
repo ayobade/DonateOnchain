@@ -3,9 +3,9 @@ import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
 import { defineChain, http } from 'viem'
 import { createConfig } from 'wagmi'
 
-// ✅ Define Hedera Testnet
+
 export const hederaTestnet = defineChain({
-  id: 296, // Hedera Testnet chain ID
+  id: 296, 
   name: 'Hedera Testnet',
   network: 'hedera-testnet',
   nativeCurrency: {
@@ -23,10 +23,10 @@ export const hederaTestnet = defineChain({
   testnet: true,
 })
 
-// ✅ Your WalletConnect Project ID
+
 const projectId = '76aec883a60155fae2012fbcb508a430'
 
-// ✅ Create Wagmi Adapter
+
 const wagmiAdapter = new WagmiAdapter({
   projectId,
   networks: [hederaTestnet],
@@ -45,6 +45,12 @@ export const reownAppKit = createAppKit({
     description: 'Web3 Donation Platform',
     url: 'https://donateonchain.com',
     icons: ['https://donateonchain.com/logo.png'],
+  },
+  features: {
+    analytics: false,
+    email: false,
+    socials: [],
+    emailShowWallets: true,
   },
 })
 

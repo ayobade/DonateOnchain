@@ -17,19 +17,61 @@ import BecomeanNgo from './pages/BecomeanNgo'
 import NgoProfile from './pages/NgoProfile'
 import Header from './component/Header'
 import ProfileSetupModal from './component/ProfileSetupModal'
+import PrivateRoute from './component/PrivateRoute'
+import { getUserProfile, getNgoProfile } from './utils/firebaseStorage'
 
 const App = () => {
-    const { isConnected } = useAccount()
+    const { isConnected, address } = useAccount()
     const [showProfileSetup, setShowProfileSetup] = useState(false)
 
     useEffect(() => {
-        if (isConnected) {
-            const setupCompleted = localStorage.getItem('profileSetupCompleted')
-            if (!setupCompleted) {
-                setShowProfileSetup(true)
+        const checkProfileExists = async () => {
+            if (isConnected && address) {
+                
+                try {
+                    const userProfile = await getUserProfile(address)
+                    const ngoProfile = await getNgoProfile(address)
+                    
+                    
+                    if (userProfile && userProfile.name && userProfile.bio) {
+                        setShowProfileSetup(false)
+                        return
+                    }
+                    
+                    if (ngoProfile && ngoProfile.name && ngoProfile.bio) {
+                        setShowProfileSetup(false)
+                        return
+                    }
+                    
+                    const savedProfile = localStorage.getItem('userProfile')
+                    if (savedProfile) {
+                        const profile = JSON.parse(savedProfile)
+                        if (profile.name && profile.bio) {
+                            setShowProfileSetup(false)
+                            return
+                        }
+                    }
+                    
+                    const ngos = JSON.parse(localStorage.getItem('ngos') || '[]')
+                    if (ngos.length > 0 && ngos[ngos.length - 1].ngoName && ngos[ngos.length - 1].missionStatement) {
+                        setShowProfileSetup(false)
+                        return
+                    }
+                    
+                    setShowProfileSetup(true)
+                } catch (error) {
+                    console.error('Error checking profile:', error)
+                  
+                    const savedProfile = localStorage.getItem('userProfile')
+                    if (!savedProfile || !JSON.parse(savedProfile).name) {
+                        setShowProfileSetup(true)
+                    }
+                }
             }
         }
-    }, [isConnected])
+        
+        checkProfileExists()
+    }, [isConnected, address])
 
     const handleCloseProfileSetup = () => {
         setShowProfileSetup(false)
@@ -48,13 +90,13 @@ const App = () => {
                     <Route path="/product/:id" element={<ProductPage />} />
                     <Route path="/cart" element={<Cart />} />
                     <Route path="/checkout" element={<Checkout />} />
-                    <Route path="/user-profile" element={<UserProfile />} />
+                    <Route path="/user-profile" element={<PrivateRoute><UserProfile /></PrivateRoute>} />
                     <Route path="/campaign" element={<Campaign />} />
                     <Route path="/campaign/:id" element={<CampaignDetails />} />
                     <Route path="/how-it-works" element={<HowItWorks />} />
-                    <Route path="/create-design" element={<CreateDesign />} />
+                    <Route path="/create-design" element={<PrivateRoute><CreateDesign /></PrivateRoute>} />
                     <Route path="/become-an-ngo" element={<BecomeanNgo />} />
-                    <Route path="/ngo-profile" element={<NgoProfile />} />
+                    <Route path="/ngo-profile" element={<PrivateRoute><NgoProfile /></PrivateRoute>} />
                 </Routes>
             </Router>
         </CartProvider>

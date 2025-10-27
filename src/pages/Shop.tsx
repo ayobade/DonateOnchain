@@ -5,9 +5,11 @@ import Footer from '../component/Footer'
 import Banner from '../component/Banner'
 import ProductCard from '../component/ProductCard'
 import FilterButton from '../component/FilterButton'
+import { SkeletonCard } from '../component/Skeleton'
 import ShopImg from '../assets/ShopImg.png'
 import { Filter, ChevronDown } from 'lucide-react'
 import { products } from '../data/databank'
+import { getAllGlobalDesigns } from '../utils/firebaseStorage'
 
 const Shop = () => {
     const navigate = useNavigate()
@@ -27,6 +29,7 @@ const Shop = () => {
     })
     const [filteredProducts, setFilteredProducts] = useState<any[]>([])
     const [allItems, setAllItems] = useState<any[]>([])
+    const [isLoading, setIsLoading] = useState(true)
     
 
     const getCategoryDisplayName = (category: string) => {
@@ -57,28 +60,89 @@ const Shop = () => {
     }
   
     useEffect(() => {
-        // Load created designs from localStorage
-        const userDesigns = JSON.parse(localStorage.getItem('userDesigns') || '[]')
-        const ngoDesigns = JSON.parse(localStorage.getItem('ngoDesigns') || '[]')
-        const allDesigns = [...userDesigns, ...ngoDesigns]
+        const loadDesigns = async () => {
+            try {
+               
+                const firebaseDesigns = await getAllGlobalDesigns();
+                
+              
+                const validFirebaseDesigns = firebaseDesigns.filter((design: any) => design && design.id && design.pieceName);
+                
+                
+               
+                const userDesigns = JSON.parse(localStorage.getItem('userDesigns') || '[]');
+                const ngoDesigns = JSON.parse(localStorage.getItem('ngoDesigns') || '[]');
+                
+                const validUserDesigns = userDesigns.filter((design: any) => design && design.id && design.pieceName);
+                const validNgoDesigns = ngoDesigns.filter((design: any) => design && design.id && design.pieceName);
+                
+               
+                const allDesigns = [...validFirebaseDesigns, ...validUserDesigns, ...validNgoDesigns];
+                const uniqueDesigns = Array.from(
+                    new Map(allDesigns.map(design => [design.id, design])).values()
+                );
+                
+                
+                
+               
+                const designItems = uniqueDesigns.map((design: any) => ({
+                    id: design.id,
+                    image: design.frontDesign?.url || design.frontDesign?.dataUrl || '/src/assets/Clothimg.png',
+                    title: design.pieceName || 'Untitled Design',
+                    creator: design.isNgo ? 'NGO Design' : 'User Design',
+                    price: design.price || '0',
+                    category: design.type?.toLowerCase() || 'shirt',
+                    categoryType: 'design',
+                    isDesign: true,
+                    design: design
+                }));
+                
+               
+                const sortedDesigns = designItems.sort((a: any, b: any) => {
+                    const aTime = new Date(a.design?.createdAt || 0).getTime()
+                    const bTime = new Date(b.design?.createdAt || 0).getTime()
+                    return bTime - aTime
+                });
+                const combinedItems = [...sortedDesigns, ...products];
+                setAllItems(combinedItems);
+                setFilteredProducts(combinedItems);
+                setIsLoading(false);
+            } catch (error) {
+                console.error('Error loading designs from Firebase, using localStorage only:', error);
+                
+               
+                const userDesigns = JSON.parse(localStorage.getItem('userDesigns') || '[]');
+                const ngoDesigns = JSON.parse(localStorage.getItem('ngoDesigns') || '[]');
+                
+                const validUserDesigns = userDesigns.filter((design: any) => design && design.id && design.pieceName);
+                const validNgoDesigns = ngoDesigns.filter((design: any) => design && design.id && design.pieceName);
+                const allDesigns = [...validUserDesigns, ...validNgoDesigns];
+                
+                const designItems = allDesigns.map((design: any) => ({
+                    id: design.id,
+                    image: design.frontDesign?.url || design.frontDesign?.dataUrl || '/src/assets/Clothimg.png',
+                    title: design.pieceName || 'Untitled Design',
+                    creator: 'User Design',
+                    price: design.price || '0',
+                    category: design.type?.toLowerCase() || 'shirt',
+                    categoryType: 'design',
+                    isDesign: true,
+                    design: design
+                }));
+                
+                const sortedDesigns = designItems.sort((a: any, b: any) => {
+                    const aTime = new Date(a.design?.createdAt || 0).getTime()
+                    const bTime = new Date(b.design?.createdAt || 0).getTime()
+                    return bTime - aTime
+                });
+                const combinedItems = [...sortedDesigns, ...products];
+                setAllItems(combinedItems);
+                setFilteredProducts(combinedItems);
+                setIsLoading(false);
+            }
+        };
         
-        // Convert designs to shop items format
-        const designItems = allDesigns.map((design: any) => ({
-            id: design.id,
-            image: design.frontDesign?.dataUrl || '/src/assets/Clothimg.png',
-            title: design.pieceName || 'Untitled Design',
-            creator: 'User Design',
-            price: design.price || '0',
-            category: design.type?.toLowerCase() || 'shirt',
-            categoryType: 'design',
-            isDesign: true,
-            design: design
-        }))
-        
-        // Combine products and designs
-        const combinedItems = [...products, ...designItems]
-        setAllItems(combinedItems)
-        setFilteredProducts(combinedItems)
+        loadDesigns();
     }, [])
 
    
@@ -209,7 +273,7 @@ const Shop = () => {
             <section className="px-4 md:px-7 py-8">
                
                 <div className="flex items-center gap-4 mb-8">
-                    {/* Desktop Category Buttons */}
+                   
                     <div className="hidden md:flex items-center gap-4">
                         <FilterButton 
                             isActive={activeCategory === 'all'}
@@ -448,10 +512,14 @@ const Shop = () => {
                 </div>
 
               
-                {filteredProducts.length > 0 ? (
+                {isLoading ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {[...Array(8)].map((_, i) => <SkeletonCard key={i} />)}
+                    </div>
+                ) : filteredProducts.length > 0 ? (
                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                          {filteredProducts.map((item) => {
-                             // Check if it's a custom design
+                            
                              if (item.isDesign) {
                                  return (
                                      <div
@@ -460,20 +528,26 @@ const Shop = () => {
                                          onClick={() => navigate(`/product/${item.id}`)}
                                      >
                                          <div className="rounded-2xl bg-[#eeeeee] mb-4">
-                                             <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center relative">
-                                                 {item.design.frontDesign?.dataUrl ? (
-                                                     <img 
-                                                         src={item.design.frontDesign.dataUrl} 
-                                                         alt={item.title}
-                                                         className="w-full h-full object-contain"
-                                                     />
-                                                 ) : (
-                                                     <div className="text-center text-gray-500">
-                                                         <div className="text-4xl mb-2">👟</div>
-                                                         <p className="text-sm">{item.design.type}</p>
-                                                     </div>
-                                                 )}
-                                             </div>
+                                        <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center relative">
+                                                {item.design.frontDesign?.url ? (
+                                                    <img 
+                                                        src={item.design.frontDesign.url} 
+                                                        alt={item.title}
+                                                        className="w-full h-full object-contain"
+                                                    />
+                                                ) : item.design.frontDesign?.dataUrl ? (
+                                                    <img 
+                                                        src={item.design.frontDesign.dataUrl} 
+                                                        alt={item.title}
+                                                        className="w-full h-full object-contain"
+                                                    />
+                                                ) : (
+                                                    <div className="text-center text-gray-500">
+                                                        <div className="text-4xl mb-2">👟</div>
+                                                        <p className="text-sm">{item.design.type}</p>
+                                                    </div>
+                                                )}
+                                            </div>
                                          </div>
                                          <div>
                                              <h3 className="text-[22px] font-semibold leading-tight mb-1">{item.title}</h3>
@@ -483,7 +557,7 @@ const Shop = () => {
                                      </div>
                                  )
                              } else {
-                                 // Regular product
+                                        
                                  return (
                                      <ProductCard
                                          key={item.id}

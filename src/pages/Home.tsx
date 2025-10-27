@@ -1,8 +1,9 @@
 import Header from "../component/Header";
 import Footer from "../component/Footer";
 import ProductCard from "../component/ProductCard";
-import CauseCard from "../component/CauseCard";
 import CreatorCard from "../component/CreatorCard";
+import CampaignCard from "../component/CampaignCard";
+import { SkeletonCard, SkeletonCampaignCard } from "../component/Skeleton";
 import HeroImage from "../assets/Heroimg.png";
 import Clothimg from "../assets/Clothimg.png";
 import Bannerleft from "../assets/Bannerleft.png";
@@ -11,6 +12,7 @@ import BannerNft from "../assets/BannerNft.png";
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { products, causes, creators } from '../data/databank';
+import { getAllGlobalDesigns, getAllCampaigns } from '../utils/firebaseStorage';
 
 const Home = () => {
     const navigate = useNavigate();
@@ -18,19 +20,41 @@ const Home = () => {
     const [popularCampaigns, setPopularCampaigns] = useState<any[]>([]);
     const [showcaseCreators, setShowcaseCreators] = useState<any[]>([]);
     const [shoeCollections, setShoeCollections] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        // Load user designs (most recent first)
+        const loadData = async () => {
+           
+            try {
+                const firebaseDesigns = await getAllGlobalDesigns();
+                
+              
+                const validFirebaseDesigns = firebaseDesigns.filter((design: any) => design && design.id && design.pieceName);
+                
+                
+                
+                
         const userDesigns = JSON.parse(localStorage.getItem('userDesigns') || '[]');
         const ngoDesigns = JSON.parse(localStorage.getItem('ngoDesigns') || '[]');
-        const allDesigns = [...userDesigns, ...ngoDesigns];
+                
+                const validUserDesigns = userDesigns.filter((design: any) => design && design.id && design.pieceName);
+                const validNgoDesigns = ngoDesigns.filter((design: any) => design && design.id && design.pieceName);
+                
+              
+                const allDesigns = [...validFirebaseDesigns, ...validUserDesigns, ...validNgoDesigns];
+                
+                
+                const uniqueDesigns = Array.from(
+                    new Map(allDesigns.map(design => [design.id, design])).values()
+                );
+                
+                
         
-        // Sort by creation date (most recent first)
-        // Mix user designs with mock data to always show 5 items
-        const sortedDesigns = allDesigns
+       
+                const sortedDesigns = uniqueDesigns
             .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
         
-        // Take user designs (up to 5) and pad with mock data
+      
         const userDesignsOnly = sortedDesigns.slice(0, 5);
         const mockDesignsNeeded = 5 - userDesignsOnly.length;
         const recentDesigns = [
@@ -39,14 +63,41 @@ const Home = () => {
         ];
         
         setPopularDesigns(recentDesigns);
-
-        // Load campaigns from localStorage (if exists)
-        const campaigns = JSON.parse(localStorage.getItem('campaigns') || '[]');
-        // Sort campaigns by creation date (most recent first)
-        const sortedCampaigns = campaigns
+            } catch (error) {
+                console.error('Error loading designs from Firebase, using localStorage only:', error);
+                
+             
+                const userDesigns = JSON.parse(localStorage.getItem('userDesigns') || '[]');
+                const ngoDesigns = JSON.parse(localStorage.getItem('ngoDesigns') || '[]');
+                
+                const validUserDesigns = userDesigns.filter((design: any) => design && design.id && design.pieceName);
+                const validNgoDesigns = ngoDesigns.filter((design: any) => design && design.id && design.pieceName);
+                
+                const allDesigns = [...validUserDesigns, ...validNgoDesigns];
+                
+                const sortedDesigns = allDesigns
+                    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+                
+                const userDesignsOnly = sortedDesigns.slice(0, 5);
+                const mockDesignsNeeded = 5 - userDesignsOnly.length;
+                const recentDesigns = [
+                    ...userDesignsOnly,
+                    ...products.slice(0, mockDesignsNeeded)
+                ];
+                
+                setPopularDesigns(recentDesigns);
+            }
+            
+           
+            try {
+                const firebaseCampaigns = await getAllCampaigns();
+                
+                
+       
+                const sortedCampaigns = firebaseCampaigns
             .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
         
-        // Take user campaigns (up to 5) and pad with mock causes data
+              
         const userCampaignsOnly = sortedCampaigns.slice(0, 5);
         const mockCampaignsNeeded = 5 - userCampaignsOnly.length;
         const recentCampaigns = [
@@ -55,29 +106,22 @@ const Home = () => {
         ];
         
         setPopularCampaigns(recentCampaigns);
+            } catch (error) {
+                console.error('Error loading campaigns:', error);
+                setPopularCampaigns(causes.slice(0, 5));
+            }
         
-        // Filter shoe designs
-        const allShoeDesigns = allDesigns
-            .filter((design: any) => design.type?.toLowerCase() === 'shoes')
-            .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-        
-        // Take user shoe designs (up to 5) and pad with mock products
-        const userShoeDesignsOnly = allShoeDesigns.slice(0, 5);
-        const mockShoesNeeded = 5 - userShoeDesignsOnly.length;
-        const finalShoeCollections = [
-            ...userShoeDesignsOnly,
-            ...products.slice(0, mockShoesNeeded)
-        ];
-        
-        setShoeCollections(finalShoeCollections);
-        
-        // For creators, use static data
         setShowcaseCreators(creators.slice(0, 6));
+        setShoeCollections(products.slice(0, 6));
+        setIsLoading(false);
+        };
+        
+        loadData();
     }, []);
   return (
     <div>
       <Header />
-      {/* Hero section */}
+
       <section className="relative max-h-[780px] min-h-[780px] flex items-end justify-start overflow-hidden">
         <div className="absolute inset-0 z-0">
           <img
@@ -120,17 +164,18 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Popular Designs */}
       <section className="px-4 md:px-7 py-12">
         <h2 className="text-3xl md:text-5xl font-semibold tracking-tight mb-8">
           Popular Designs
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-          {popularDesigns.length > 0 ? (
+          {isLoading ? (
+            [...Array(5)].map((_, i) => <SkeletonCard key={i} />)
+          ) : popularDesigns.length > 0 ? (
             popularDesigns.map((item) => {
-              // Check if it's a custom design or regular product
+            
               if (item.pieceName || item.isDesign) {
-                // Custom design - show on shirt mockup
+              
                 const design = item.isDesign ? item.design : item;
                 return (
                   <div 
@@ -140,7 +185,7 @@ const Home = () => {
                   >
                     <div className="rounded-2xl bg-[#eeeeee] mb-4">
                       <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center relative">
-                        {/* T-shirt mockup background */}
+                      
                         <img 
                           src="/src/assets/shirtfront.png" 
                           alt="Shirt Mockup" 
@@ -151,13 +196,35 @@ const Home = () => {
                           }}
                         />
                         
-                        {/* Uploaded design overlay */}
-                        {design.frontDesign?.dataUrl && (
+                      
+                        {design.frontDesign?.url && (
                           <div 
                             className="absolute"
                             style={{ 
-                              width: '145px', 
-                              height: '200px',
+                              width: '50%', 
+                              height: 'auto',
+                              maxWidth: '145px',
+                              maxHeight: '200px',
+                              top: '50%',
+                              left: '50%',
+                              transform: 'translate(-50%, -50%)'
+                            }}
+                          >
+                            <img 
+                              src={design.frontDesign.url} 
+                              alt="Design" 
+                              className="w-full h-full object-contain"
+                            />
+                          </div>
+                        )}
+                        {!design.frontDesign?.url && design.frontDesign?.dataUrl && (
+                          <div 
+                            className="absolute"
+                            style={{ 
+                              width: '50%', 
+                              height: 'auto',
+                              maxWidth: '145px',
+                              maxHeight: '200px',
                               top: '50%',
                               left: '50%',
                               transform: 'translate(-50%, -50%)'
@@ -171,8 +238,8 @@ const Home = () => {
                           </div>
                         )}
                         
-                        {/* Fallback if no design */}
-                        {!design.frontDesign?.dataUrl && (
+                        
+                      {!design.frontDesign?.url && !design.frontDesign?.dataUrl && (
                           <div className="text-center text-gray-500">
                             <div className="text-4xl mb-2">👕</div>
                             <p className="text-sm">{design.type}</p>
@@ -193,7 +260,7 @@ const Home = () => {
                   </div>
                 )
               } else {
-                // Regular product - use ProductCard
+               
                 return (
                   <ProductCard
                     key={item.id}
@@ -223,7 +290,7 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Banner section */}
+      
       <section className="px-4 md:px-7 py-12">
         <div className="grid grid-cols-1 lg:grid-cols-10 gap-6 max-h-[600px]">
           <div className="relative rounded-3xl overflow-hidden lg:col-span-6 max-h-[500px]">
@@ -312,37 +379,37 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Popular Campaigns */}
+      
       <section className="px-4 md:px-7 py-12">
         <h2 className="text-3xl md:text-5xl font-semibold tracking-tight mb-8">
           Popular Campaigns
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-          {popularCampaigns.length > 0 ? (
-            popularCampaigns.map((campaign) => (
-              <CauseCard
+          {isLoading ? (
+            [...Array(5)].map((_, i) => <SkeletonCampaignCard key={i} />)
+          ) : popularCampaigns.map((campaign) => {
+            const goal = campaign.goal || campaign.target || 0
+            const amountRaised = campaign.amountRaised || 0
+            const percentage = campaign.percentage || (goal > 0 ? (amountRaised / goal) * 100 : 0)
+            const imageUrl = campaign.image || campaign.coverImageFile || '/src/assets/Clothimg.png'
+            
+            return (
+              <CampaignCard
                 key={campaign.id}
-                image={campaign.image}
+                image={imageUrl}
                 title={campaign.title}
-                organization={campaign.organization}
+                amountRaised={`₦${amountRaised.toLocaleString()}`}
+                goal={`₦${goal.toLocaleString()}`}
+                percentage={percentage}
                 alt={campaign.title}
+                onClick={() => navigate(`/campaign/${campaign.id}`)}
               />
-            ))
-          ) : (
-            causes.map((cause) => (
-              <CauseCard
-                key={cause.id}
-                image={cause.image}
-                title={cause.title}
-                organization={cause.organization}
-                alt={cause.title}
-              />
-            ))
-          )}
+            )
+          })}
         </div>
       </section>
 
-      {/* Special collections */}
+      
       <section className="px-4 md:px-7 py-12">
         <h2 className="text-3xl md:text-5xl font-semibold tracking-tight mb-8">
           Special Collections
@@ -362,7 +429,7 @@ const Home = () => {
         </div>
       </section>
 
-      {/* How It Works Banner */}
+      
       <section className="px-4 md:px-8 py-12">
         <div className="bg-black rounded-3xl overflow-hidden">
           <div className="grid grid-cols-1 lg:grid-cols-2 items-center">
@@ -414,7 +481,7 @@ const Home = () => {
 
       
 
-      {/* Creators Section */}
+      
       <section className="px-4 md:px-7 py-12">
           <h2 className="text-3xl md:text-5xl font-semibold tracking-tight mb-8">Check Out Your Creators</h2>
            <div className="flex flex-wrap gap-6">
@@ -431,16 +498,16 @@ const Home = () => {
       </section>
 
 
-       {/* Shoe collections */}
+      
        <section className="px-4 md:px-7 py-12">
         <h2 className="text-3xl md:text-5xl font-semibold tracking-tight mb-8">
           Shoes Collections
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
           {shoeCollections.map((item) => {
-            // Check if it's a custom design or regular product
+           
             if (item.pieceName && item.frontDesign) {
-              // Custom design
+             
               return (
                 <div 
                   key={`shoe-${item.id}`}
@@ -449,15 +516,15 @@ const Home = () => {
                 >
                   <div className="rounded-2xl bg-[#eeeeee] mb-4">
                     <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center relative">
-                      {/* For shoes, show design directly */}
-                      {item.frontDesign?.dataUrl && (
+
+                      {(item.frontDesign?.dataUrl || item.frontDesign?.url) && (
                         <img 
-                          src={item.frontDesign.dataUrl} 
+                          src={item.frontDesign?.url || item.frontDesign?.dataUrl} 
                           alt={item.pieceName}
                           className="w-full h-full object-contain"
                         />
                       )}
-                      {!item.frontDesign?.dataUrl && (
+                      {!(item.frontDesign?.dataUrl || item.frontDesign?.url) && (
                         <div className="text-center text-gray-500">
                           <div className="text-4xl mb-2">👟</div>
                           <p className="text-sm">{item.type}</p>
@@ -476,7 +543,7 @@ const Home = () => {
                 </div>
               )
             } else {
-              // Regular product
+
               return (
                 <ProductCard
                   key={`shoes-${item.id}`}

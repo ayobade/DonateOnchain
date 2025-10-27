@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useAccount } from 'wagmi'
 import Header from '../component/Header'
 import Footer from '../component/Footer'
 import Banner from '../component/Banner'
@@ -7,34 +8,176 @@ import ProductCard from '../component/ProductCard'
 import { products } from '../data/databank'
 import { ChevronDown, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useCart } from '../context/CartContext'
+import { getUserDesigns, getNGODesigns, getAllGlobalDesigns, getUserProfile, getNgoProfile } from '../utils/firebaseStorage'
 
 const ProductPage = () => {
     const { id } = useParams<{ id: string }>()
     const navigate = useNavigate()
+    const { address, isConnected } = useAccount()
     const [selectedSize, setSelectedSize] = useState<string>('')
     const [selectedQuantity, setSelectedQuantity] = useState<number>(1)
+    const [availableQuantity, setAvailableQuantity] = useState<number>(Infinity)
     const [openAccordion, setOpenAccordion] = useState<string | null>(null)
     const [showSuccessMessage, setShowSuccessMessage] = useState<boolean>(false)
     const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false)
     const [customDesign, setCustomDesign] = useState<any>(null)
     const [currentImageView, setCurrentImageView] = useState<'front' | 'back'>('front')
+    const [isMyDesign, setIsMyDesign] = useState(false)
+    const [profileName, setProfileName] = useState<string>('')
     const { addToCart } = useCart()
 
-    // Check if this is a custom design from localStorage
+   
     useEffect(() => {
+        const loadCreatorName = async () => {
+            if (customDesign && customDesign.walletAddress) {
+                if (customDesign.isNgo) {
+                   
+                    try {
+                        const ngoProfile = await getNgoProfile(customDesign.walletAddress)
+                        if (ngoProfile && ngoProfile.name) {
+                            setProfileName(ngoProfile.name)
+                            return
+                        }
+                    } catch (error) {
+                        console.error('Error loading NGO profile from Firebase:', error)
+                    }
+                    
+                   
+                    const ngos = JSON.parse(localStorage.getItem('ngos') || '[]')
+                    const matchingNgo = ngos.find((ngo: any) => 
+                        ngo.walletAddress?.toLowerCase() === customDesign.walletAddress?.toLowerCase() ||
+                        ngo.connectedWalletAddress?.toLowerCase() === customDesign.walletAddress?.toLowerCase()
+                    )
+                    if (matchingNgo) {
+                        setProfileName(matchingNgo.ngoName)
+                    } else {
+                        setProfileName('An NGO')
+                    }
+                } else {
+                   
+                    try {
+                        const userProfile = await getUserProfile(customDesign.walletAddress)
+                        if (userProfile && userProfile.name) {
+                            setProfileName(userProfile.name)
+                            return
+                        }
+                    } catch (error) {
+                        console.error('Error loading user profile from Firebase:', error)
+                    }
+                    
+                   
+                    const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}')
+                    if (userProfile && userProfile.name && customDesign.walletAddress === address) {
+                        setProfileName(userProfile.name)
+                    } else {
+                        setProfileName('A User')
+                    }
+                }
+            }
+        }
+        
+        loadCreatorName()
+    }, [customDesign, isConnected, address])
+
+   
+    useEffect(() => {
+        const loadDesign = async () => {
         if (id) {
-            // Check both user and NGO designs
+                console.log('Loading design with id:', id);
+                
+               
             const userDesigns = JSON.parse(localStorage.getItem('userDesigns') || '[]')
             const ngoDesigns = JSON.parse(localStorage.getItem('ngoDesigns') || '[]')
             const allDesigns = [...userDesigns, ...ngoDesigns]
-            const foundDesign = allDesigns.find((design: any) => design.id === parseInt(id))
+               
+                const foundDesign = allDesigns.find((design: any) => 
+                    design.id?.toString() === id?.toString() || 
+                    design.id === parseInt(id)
+                )
+                
+                console.log('Checking localStorage - found:', !!foundDesign);
+                
             if (foundDesign) {
                 setCustomDesign(foundDesign)
+                const qty = foundDesign.quantity || foundDesign.maxQuantity || 0
+                setAvailableQuantity(qty)
+                    return
+                }
+                
+               
+                try {
+                    console.log('Design not found in localStorage, checking Firebase global collection...');
+                    const allFirebaseDesigns = await getAllGlobalDesigns()
+                    console.log('Firebase global designs loaded:', allFirebaseDesigns.length);
+                    
+                   
+                    const foundFirebaseDesign = allFirebaseDesigns.find((design: any) => 
+                        design.id?.toString() === id?.toString() || 
+                        design.id === parseInt(id)
+                    )
+                    
+                    if (foundFirebaseDesign) {
+                        console.log('Design found in Firebase global collection');
+                        setCustomDesign(foundFirebaseDesign)
+                        return
+                    }
+                    
+                   
+                    if (address && isConnected) {
+                        console.log('Design not in global collection, checking user\'s own designs...');
+                        const userDesignsFirebase = await getUserDesigns(address)
+                        const ngoDesignsFirebase = await getNGODesigns(address)
+                        const allOwnDesigns = [...userDesignsFirebase, ...ngoDesignsFirebase]
+                        const foundOwnDesign = allOwnDesigns.find((design: any) => 
+                            design.id?.toString() === id?.toString() || 
+                            design.id === parseInt(id)
+                        )
+                        
+                        if (foundOwnDesign) {
+                            console.log('Design found in user\'s own Firebase designs');
+                            setCustomDesign(foundOwnDesign)
+                        } else {
+                            console.log('Design not found anywhere');
+                        }
+                    } else {
+                        console.log('Design not found - user not connected and not in global collection');
+                    }
+                } catch (error) {
+                    console.error('Error loading design from Firebase:', error)
+                }
             }
         }
-    }, [id])
+        
+        loadDesign()
+    }, [id, address, isConnected])
 
-    // Use custom design if found, otherwise use regular product
+   
+    useEffect(() => {
+        if (customDesign && isConnected && address) {
+            const isOwner = customDesign.walletAddress?.toLowerCase() === address.toLowerCase() ||
+                           customDesign.connectedWalletAddress?.toLowerCase() === address.toLowerCase()
+            setIsMyDesign(isOwner)
+        } else if (customDesign && !isConnected) {
+           
+            const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}')
+            const ngos = JSON.parse(localStorage.getItem('ngos') || '[]')
+            
+            if (customDesign.isNgo) {
+                const matchingNgo = ngos.find((ngo: any) => 
+                    ngo.walletAddress?.toLowerCase() === customDesign.walletAddress?.toLowerCase() ||
+                    ngo.connectedWalletAddress?.toLowerCase() === customDesign.walletAddress?.toLowerCase()
+                )
+                setIsMyDesign(!!matchingNgo)
+            } else if (userProfile && userProfile.name) {
+                
+                setIsMyDesign(true)
+            } else {
+                setIsMyDesign(false)
+            }
+        }
+    }, [customDesign, isConnected, address])
+
+   
     const product = customDesign || products.find(p => p.id === parseInt(id || '1'))
 
     if (!product) {
@@ -63,21 +206,21 @@ const ProductPage = () => {
 
     const handleAddToCart = () => {
         if (product) {
-            if (customDesign) {
-                // For custom designs, add each selected size as a separate cart item
+            if (customDesign && isConnected && isMyDesign) {
+                const maxQuantity = customDesign.quantity || customDesign.maxQuantity
                 customDesign.sizes.forEach((size: string) => {
                     for (let i = 0; i < selectedQuantity; i++) {
-                        addToCart(customDesign.id, size, customDesign.color)
+                        addToCart(customDesign.id, size, customDesign.color, maxQuantity)
                     }
                 })
             } else if (selectedSize) {
-                // For regular products, use the selected size
+                const maxQuantity = customDesign ? (customDesign.quantity || customDesign.maxQuantity) : undefined
             for (let i = 0; i < selectedQuantity; i++) {
-                addToCart(product.id, selectedSize, product.color)
+                    addToCart(product.id, selectedSize, product.color, maxQuantity)
                 }
             }
             setShowSuccessMessage(true)
-            // Hide success message after 3 seconds
+           
             setTimeout(() => {
                 setShowSuccessMessage(false)
             }, 3000)
@@ -90,13 +233,13 @@ const ProductPage = () => {
 
     const handleConfirmDelete = () => {
         if (customDesign) {
-            // Determine which storage to use based on design type
+           
             const storageKey = customDesign.isNgo ? 'ngoDesigns' : 'userDesigns'
             const existingDesigns = JSON.parse(localStorage.getItem(storageKey) || '[]')
             const updatedDesigns = existingDesigns.filter((design: any) => design.id !== customDesign.id)
             localStorage.setItem(storageKey, JSON.stringify(updatedDesigns))
             
-            // Navigate back to appropriate profile
+           
             const redirectPath = customDesign.isNgo ? '/ngo-profile' : '/user-profile'
             navigate(redirectPath)
         }
@@ -110,7 +253,7 @@ const ProductPage = () => {
         <div>
             <Header />
             
-            {/* Success Message */}
+           
             {showSuccessMessage && (
                 <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-pulse">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -120,7 +263,7 @@ const ProductPage = () => {
                 </div>
             )}
             
-            {/* Delete Confirmation Modal */}
+           
             {showDeleteModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                     <div className="bg-white rounded-2xl p-8 max-w-md mx-4 text-center">
@@ -147,17 +290,17 @@ const ProductPage = () => {
                 </div>
             )}
             
-            {/* Product Detail Section */}
+           
             <section className="px-4 md:px-7 py-12">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 max-w-7xl mx-auto">
-                    {/* Product Image */}
+                   
                     <div className="flex justify-center">
                         <div className="w-full max-w-md">
                             <div className="bg-gray-100 rounded-2xl p-8 flex items-center justify-center">
                                 {customDesign ? (
-                                    /* Custom Design Display */
+
                                     <div className="relative w-full max-w-sm">
-                                        {/* T-shirt mockup background */}
+                                     
                                         <img 
                                             src="/src/assets/shirtfront.png" 
                                             alt="Shirt Mockup" 
@@ -168,47 +311,51 @@ const ProductPage = () => {
                                             }}
                                         />
                                         
-                                        {/* Uploaded design overlay */}
-                                        {currentImageView === 'front' && customDesign.frontDesign?.dataUrl && (
+                                            
+                                        {currentImageView === 'front' && (customDesign.frontDesign?.dataUrl || customDesign.frontDesign?.url) && (
                                             <div 
                                                 className="absolute"
                                                 style={{ 
-                                                    width: '145px', 
-                                                    height: '200px',
+                                                    width: '65%', 
+                                                    height: 'auto',
+                                                    maxWidth: '145px',
+                                                    maxHeight: '200px',
                                                     top: '50%',
                                                     left: '50%',
                                                     transform: 'translate(-50%, -50%)'
                                                 }}
                                             >
                                                 <img 
-                                                    src={customDesign.frontDesign.dataUrl} 
+                                                    src={customDesign.frontDesign.url || customDesign.frontDesign.dataUrl} 
                                                     alt="Front Design" 
                                                     className="w-full h-full object-contain"
                                                 />
                                             </div>
                                         )}
                                         
-                                        {currentImageView === 'back' && customDesign.backDesign?.dataUrl && (
+                                        {currentImageView === 'back' && (customDesign.backDesign?.dataUrl || customDesign.backDesign?.url) && (
                                             <div 
                                                 className="absolute"
                                                 style={{ 
-                                                    width: '145px', 
-                                                    height: '200px',
+                                                    width: '65%', 
+                                                    height: 'auto',
+                                                    maxWidth: '145px',
+                                                    maxHeight: '200px',
                                                     top: '50%',
                                                     left: '50%',
                                                     transform: 'translate(-50%, -50%)'
                                                 }}
                                             >
                                                 <img 
-                                                    src={customDesign.backDesign.dataUrl} 
+                                                    src={customDesign.backDesign.url || customDesign.backDesign.dataUrl} 
                                                     alt="Back Design" 
                                                     className="w-full h-full object-contain"
                                                 />
                                             </div>
                                         )}
                                         
-                                        {/* Navigation arrows */}
-                                        {(customDesign.frontDesign?.dataUrl && customDesign.backDesign?.dataUrl) && (
+                                      
+                                        {((customDesign.frontDesign?.dataUrl || customDesign.frontDesign?.url) && (customDesign.backDesign?.dataUrl || customDesign.backDesign?.url)) && (
                                             <>
                                                 <button
                                                     onClick={() => setCurrentImageView(currentImageView === 'front' ? 'back' : 'front')}
@@ -225,8 +372,8 @@ const ProductPage = () => {
                                             </>
                                         )}
                                         
-                                        {/* Image Navigation */}
-                                        {(customDesign.frontDesign?.dataUrl || customDesign.backDesign?.dataUrl) && (
+                                       
+                                        {((customDesign.frontDesign?.dataUrl || customDesign.frontDesign?.url) || (customDesign.backDesign?.dataUrl || customDesign.backDesign?.url)) && (
                                             <div className="flex justify-center mt-4">
                                                 <div className="flex bg-white rounded-lg p-1 shadow-sm">
                                                     <button
@@ -254,7 +401,7 @@ const ProductPage = () => {
                                         )}
                                     </div>
                                 ) : (
-                                    /* Regular Product Display */
+                                   
                                 <img
                                     src={product.image}
                                     alt={product.title}
@@ -265,7 +412,7 @@ const ProductPage = () => {
                         </div>
                     </div>
 
-                    {/*Product Information */}
+                   
                     <div className="flex flex-col justify-center">
                         <div className="max-w-md">
                            
@@ -273,17 +420,23 @@ const ProductPage = () => {
                                 {customDesign ? customDesign.pieceName : product.title}
                             </h1>
                           
-                            <p className="text-lg text-black mb-4">
+                            <p className="text-lg text-black mb-2">
                                 {customDesign ? `Campaign: ${customDesign.campaign}` : `By ${product.creator}`}
                             </p>
+
+                            {customDesign && (
+                                <p className="text-base text-gray-600 mb-4">
+                                    Created by: {isConnected && isMyDesign ? 'You' : (profileName || (customDesign.isNgo ? 'An NGO' : 'A User'))}
+                                </p>
+                            )}
                           
                             <p className="text-2xl font-semibold text-black mb-8">
                                 {customDesign ? `₦${customDesign.price}` : product.price}
                             </p>
 
                           
-                            {customDesign ? (
-                                /* Custom Design - Read-only Size and Quantity */
+                            {customDesign && isConnected && isMyDesign ? (
+                               
                                 <>
                                     <div className="mb-8">
                                         <label className="block text-sm font-medium text-black mb-3">
@@ -304,7 +457,7 @@ const ProductPage = () => {
                                     </div>
                                 </>
                             ) : (
-                                /* Regular Product - Interactive Size and Quantity */
+                               
                                 <>
                             <div className="mb-8">
                                 <label className="block text-sm font-medium text-black mb-3">
@@ -317,7 +470,7 @@ const ProductPage = () => {
                                         className="w-full px-4 py-3 border border-gray-300 rounded-lg appearance-none bg-white text-black focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
                                     >
                                         <option value="">Choose an option</option>
-                                                {product.sizes.map((size: string) => (
+                                        {(customDesign?.sizes || product.sizes || []).map((size: string) => (
                                             <option key={size} value={size}>
                                                 {size}
                                             </option>
@@ -327,11 +480,14 @@ const ProductPage = () => {
                                 </div>
                             </div>
 
-                            {/* Quantity selector */}
+                           
                             <div className="mb-8">
                                 <label className="block text-sm font-medium text-black mb-3">
-                                    Quantity
+                                    Quantity {customDesign && `(${availableQuantity} available)`}
                                 </label>
+                                {customDesign && selectedQuantity > availableQuantity && (
+                                    <p className="text-red-500 text-sm mb-2">Cannot select more than {availableQuantity} items</p>
+                                )}
                                 <div className="flex items-center gap-3">
                                     <button
                                         onClick={() => setSelectedQuantity(Math.max(1, selectedQuantity - 1))}
@@ -341,14 +497,26 @@ const ProductPage = () => {
                                     </button>
                                     <input
                                         type="number"
-                                        value={selectedQuantity}
-                                        onChange={(e) => setSelectedQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                                        value={Math.min(selectedQuantity, customDesign ? availableQuantity : Infinity)}
+                                        onChange={(e) => {
+                                            const newQty = Math.max(1, parseInt(e.target.value) || 1)
+                                            const maxAllowed = customDesign ? availableQuantity : Infinity
+                                            setSelectedQuantity(Math.min(newQty, maxAllowed))
+                                        }}
                                         className="w-16 h-10 border border-gray-300 rounded text-center text-sm"
                                         min="1"
+                                        max={customDesign ? availableQuantity : undefined}
                                     />
+                                    {customDesign && selectedQuantity > availableQuantity && (
+                                        <span className="text-red-500 text-xs">Max: {availableQuantity}</span>
+                                    )}
                                     <button
-                                        onClick={() => setSelectedQuantity(selectedQuantity + 1)}
-                                        className="w-10 h-10 rounded-full bg-black flex items-center justify-center text-white hover:bg-gray-800 transition-colors"
+                                        onClick={() => {
+                                            const maxAllowed = customDesign ? availableQuantity : Infinity
+                                            setSelectedQuantity(Math.min(selectedQuantity + 1, maxAllowed))
+                                        }}
+                                        className="w-10 h-10 rounded-full bg-black flex items-center justify-center text-white hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        disabled={customDesign && selectedQuantity >= availableQuantity}
                                     >
                                         <span className="text-base">+</span>
                                     </button>
@@ -357,7 +525,7 @@ const ProductPage = () => {
                                 </>
                             )}
 
-                            {/* Custom Design Description */}
+                           
                             {customDesign && customDesign.description && (
                                 <div className="mb-8">
                                     <label className="block text-sm font-medium text-black mb-3">
@@ -369,8 +537,8 @@ const ProductPage = () => {
                                 </div>
                             )}
 
-                            {customDesign ? (
-                                /* Edit and Delete Buttons for Custom Designs */
+                            {customDesign && isConnected && isMyDesign ? (
+                               
                                 <div className="flex gap-3 mb-8">
                                     <button 
                                         onClick={() => navigate('/create-design', { state: { editDesign: customDesign } })}
@@ -386,14 +554,24 @@ const ProductPage = () => {
                                     </button>
                                 </div>
                             ) : (
-                                /* Add to Cart Button for Regular Products */
+                                <>
+                                    {customDesign && availableQuantity <= 0 ? (
+                                        <button 
+                                            className="w-full bg-gray-500 text-white py-4 px-6 rounded-lg font-semibold text-lg mb-8 cursor-not-allowed"
+                                            disabled
+                                        >
+                                            Sold Out
+                                        </button>
+                                    ) : (
                             <button 
                                 onClick={handleAddToCart}
                                 className="w-full bg-black text-white py-4 px-6 rounded-lg font-semibold text-lg hover:bg-gray-800 transition-colors mb-8 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                                disabled={!selectedSize}
+                                            disabled={!selectedSize || (customDesign && selectedQuantity > availableQuantity)}
                             >
                                 Add to cart
                             </button>
+                                    )}
+                                </>
                             )}
 
                           
@@ -460,7 +638,7 @@ const ProductPage = () => {
                 </div>
             </section>
 
-            {/* You may also like section */}
+        
             <section className="px-4 md:px-7 py-12">
                
                     <h2 className="text-3xl md:text-4xl font-bold text-black mb-8">

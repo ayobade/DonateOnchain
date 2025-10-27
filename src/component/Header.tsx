@@ -39,7 +39,7 @@ const Header = () => {
     }
 
     const handleConnect = async () => {
-        await reownAppKit.open() // opens Reown modal
+        await reownAppKit.open() 
       }
 
     const handleSearch = (query: string) => {
@@ -51,7 +51,7 @@ const Header = () => {
         
         const searchTerm = query.toLowerCase()
         
-        // Search products
+      
         const productResults = products.filter(product => 
             product.title.toLowerCase().includes(searchTerm) ||
             product.creator.toLowerCase().includes(searchTerm) ||
@@ -59,26 +59,26 @@ const Header = () => {
             product.description.toLowerCase().includes(searchTerm)
         ).map(p => ({ ...p, type: 'product' }))
         
-        // Search campaigns
+      
         const campaignResults = campaigns.filter(campaign => 
             campaign.title.toLowerCase().includes(searchTerm) ||
             campaign.category.toLowerCase().includes(searchTerm) ||
             campaign.about.toLowerCase().includes(searchTerm)
         ).map(c => ({ ...c, type: 'campaign' }))
         
-        // Search causes
+      
         const causeResults = causes.filter(cause => 
             cause.title.toLowerCase().includes(searchTerm) ||
             cause.organization.toLowerCase().includes(searchTerm)
         ).map(c => ({ ...c, type: 'cause' }))
         
-        // Search creators
+     
         const creatorResults = creators.filter(creator => 
             creator.name.toLowerCase().includes(searchTerm) ||
             creator.role.toLowerCase().includes(searchTerm)
         ).map(c => ({ ...c, type: 'creator' }))
         
-        // Search user designs
+       
         const userDesigns = JSON.parse(localStorage.getItem('userDesigns') || '[]')
         const ngoDesigns = JSON.parse(localStorage.getItem('ngoDesigns') || '[]')
         const allDesigns = [...userDesigns, ...ngoDesigns]
@@ -99,7 +99,7 @@ const Header = () => {
         setSearchQuery('')
         setSearchResults([])
         
-        // Navigate based on item type
+      
         switch (item.type) {
             case 'product':
                 navigate(`/product/${item.id}`)
@@ -111,11 +111,11 @@ const Header = () => {
                 navigate(`/product/${item.id}`)
                 break
             case 'cause':
-                // Causes don't have individual pages yet, but could navigate to campaigns
+               
                 navigate('/campaign')
                 break
             case 'creator':
-                // Creators don't have individual pages yet
+             
                 navigate('/')
                 break
             default:
@@ -144,8 +144,7 @@ const Header = () => {
         disconnect()
         setIsWalletMenuOpen(false)
         
-        // Clear NGO applications when wallet is disconnected
-        // They are tied to the wallet address
+      
         localStorage.removeItem('ngos')
         
         navigate('/')
@@ -595,7 +594,7 @@ const Header = () => {
                 </>
             )}
 
-            {/* Account Menu Overlay */}
+           
             {isAccountMenuOpen && (
                 <>
                     <div className="fixed inset-0 z-10" onClick={() => setIsAccountMenuOpen(false)} />

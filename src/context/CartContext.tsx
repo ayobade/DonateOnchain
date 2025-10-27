@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import type { ReactNode } from 'react'
+import { useAccount } from 'wagmi'
+import { saveCart, getCart } from '../utils/firebaseStorage'
 
 interface CartItem {
     id: number
@@ -10,11 +12,12 @@ interface CartItem {
     campaign?: string
     pieceName?: string
     isNgo?: boolean
+    maxQuantity?: number
 }
 
 interface CartContextType {
     cartItems: CartItem[]
-    addToCart: (productId: number, size: string, color: string) => void
+    addToCart: (productId: number, size: string, color: string, maxQuantity?: number) => void
     updateQuantity: (uniqueId: string, newQuantity: number) => void
     removeItem: (uniqueId: string) => void
     clearCart: () => void
@@ -37,54 +40,132 @@ interface CartProviderProps {
 
 export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
     const [cartItems, setCartItems] = useState<CartItem[]>([])
+    const [currentWallet, setCurrentWallet] = useState<string | null>(null)
+    const { address, isConnected } = useAccount()
 
-   
     useEffect(() => {
-        const savedCart = localStorage.getItem('cart')
-        if (savedCart) {
-            try {
-                const parsedCart = JSON.parse(savedCart)
+        const loadCart = async () => {
+            if (isConnected && address) {
+               
+                if (currentWallet && currentWallet !== address) {
+                    setCartItems([])
+                    setCurrentWallet(address)
+                    return
+                }
+                
              
-                const migratedCart = parsedCart.map((item: any) => {
-                    if (!item.uniqueId) {
-                        return {
-                            ...item,
-                            uniqueId: `${item.id}-${item.size}-${item.color}`
+                try {
+                    const firebaseCart = await getCart(address)
+                    if (firebaseCart && firebaseCart.length > 0) {
+                        const migratedCart = firebaseCart.map((item: any) => {
+                            if (!item.uniqueId) {
+                                return {
+                                    ...item,
+                                    uniqueId: `${item.id}-${item.size}-${item.color}`
+                                }
+                            }
+                            return item
+                        })
+                        setCartItems(migratedCart)
+                        setCurrentWallet(address)
+                        return
+                    }
+                } catch (error) {
+                    console.error('Error loading cart from Firebase:', error)
+                }
+                
+             
+                const savedCart = localStorage.getItem(`cart_${address}`)
+                if (savedCart) {
+                    try {
+                        const parsedCart = JSON.parse(savedCart)
+                        const migratedCart = parsedCart.map((item: any) => {
+                            if (!item.uniqueId) {
+                                return {
+                                    ...item,
+                                    uniqueId: `${item.id}-${item.size}-${item.color}`
+                                }
+                            }
+                            return item
+                        })
+                        setCartItems(migratedCart)
+                        setCurrentWallet(address)
+                    } catch (error) {
+                        console.error('Error loading cart from localStorage:', error)
+                    }
+                } else {
+                    setCurrentWallet(address)
+                }
+            } else if (!isConnected) {
+               
+                if (currentWallet) {
+                    const savedCart = localStorage.getItem(`cart_${currentWallet}`)
+                    if (savedCart) {
+                        try {
+                            const parsedCart = JSON.parse(savedCart)
+                            setCartItems(parsedCart)
+                        } catch (error) {
+                            console.error('Error loading cart from localStorage:', error)
                         }
                     }
-                    return item
-                })
-                setCartItems(migratedCart)
-            } catch (error) {
-                console.error('Error loading cart from localStorage:', error)
+                }
             }
         }
-    }, [])
+        
+        loadCart()
+    }, [address, isConnected, currentWallet])
 
-   
     useEffect(() => {
-        localStorage.setItem('cart', JSON.stringify(cartItems))
-    }, [cartItems])
+        const saveToStorage = async () => {
+            if (address) {
+                localStorage.setItem(`cart_${address}`, JSON.stringify(cartItems))
+            } else {
+                localStorage.setItem('cart', JSON.stringify(cartItems))
+            }
+            
+            if (isConnected && address) {
+                try {
+                    await saveCart(address, cartItems)
+                } catch (error) {
+                    console.error('Error saving cart to Firebase:', error)
+                }
+            }
+        }
+        
+        saveToStorage()
+    }, [cartItems, address, isConnected])
 
-    const addToCart = (productId: number, size: string, color: string) => {
+    const addToCart = (productId: number, size: string, color: string, maxQuantity?: number) => {
         const uniqueId = `${productId}-${size}-${color}`
         setCartItems(prevItems => {
-          
             const existingItemIndex = prevItems.findIndex(
                 item => item.uniqueId === uniqueId
             )
 
             if (existingItemIndex > -1) {
-               
                 const updatedItems = [...prevItems]
+                const currentItem = updatedItems[existingItemIndex]
+                const newQuantity = currentItem.quantity + 1
+                
+                if (maxQuantity && newQuantity > maxQuantity) {
+                    console.error('Cannot add more items, maximum quantity reached')
+                    return prevItems
+                }
+                
                 updatedItems[existingItemIndex] = {
-                    ...updatedItems[existingItemIndex],
-                    quantity: updatedItems[existingItemIndex].quantity + 1
+                    ...currentItem,
+                    quantity: newQuantity
                 }
                 return updatedItems
             } else {
-             
-                const newItem = { id: productId, quantity: 1, size, color, uniqueId }
+                const newItem = { 
+                    id: productId, 
+                    quantity: 1, 
+                    size, 
+                    color, 
+                    uniqueId,
+                    maxQuantity
+                }
                 return [...prevItems, newItem]
             }
         })
@@ -95,10 +176,18 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
             removeItem(uniqueId)
             return
         }
+        
         setCartItems(items => 
-            items.map(item => 
-                item.uniqueId === uniqueId ? { ...item, quantity: newQuantity } : item
-            )
+            items.map(item => {
+                if (item.uniqueId === uniqueId) {
+                    if (item.maxQuantity && newQuantity > item.maxQuantity) {
+                        console.error('Cannot exceed maximum quantity')
+                        return item
+                    }
+                    return { ...item, quantity: newQuantity }
+                }
+                return item
+            })
         )
     }
 

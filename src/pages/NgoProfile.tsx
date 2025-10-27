@@ -1,16 +1,24 @@
 import Header from "../component/Header";
 import Footer from "../component/Footer";
 import Button from "../component/Button";
-import { Plus, X, Camera, Copy, Check } from "lucide-react";
+import CreateCampaignModal from "../component/CreateCampaignModal";
+import CampaignCard from "../component/CampaignCard";
+import { SkeletonProfile } from "../component/Skeleton";
+import { Plus, X, Camera, Copy, Check, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAccount } from "wagmi";
+import { getNGODesigns, getUserDonations, getUserPurchases, saveNgoProfileWithImages, getNgoProfile, migrateDesignImagesToFirebase, saveCampaign, getAllCampaigns } from '../utils/firebaseStorage';
 
 const NgoProfile = () => {
     const navigate = useNavigate();
     const { address, isConnected } = useAccount();
-    const [activeCategory, setActiveCategory] = useState<'NFTs' | 'History' | 'Created'>('NFTs');
+    const [activeCategory, setActiveCategory] = useState<'NFTs' | 'History' | 'Created' | 'Campaigns'>('NFTs');
+    const [createdCampaigns, setCreatedCampaigns] = useState<any[]>([]);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isCreateCampaignModalOpen, setIsCreateCampaignModalOpen] = useState(false);
+    const [isUploadingCampaign, setIsUploadingCampaign] = useState(false);
+    const [isCampaignCreatedSuccessfully, setIsCampaignCreatedSuccessfully] = useState(false);
     const [copied, setCopied] = useState(false);
     const [profileData, setProfileData] = useState({
         name: '',
@@ -30,6 +38,8 @@ const NgoProfile = () => {
     const [bannerImage, setBannerImage] = useState<string | null>(null);
     const [profileImage, setProfileImage] = useState<string | null>(null);
     const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
     const [ngoDetails, setNgoDetails] = useState<any>(null);
     const [showMoreDetails, setShowMoreDetails] = useState(false);
     const [showFullBio, setShowFullBio] = useState(false);
@@ -42,11 +52,29 @@ const NgoProfile = () => {
         totalDesigns: 0
     });
 
-    // Load NGO data from localStorage
+    
     useEffect(() => {
+        const loadProfile = async () => {
+            if (address && isConnected) {
+                try {
+                    const firebaseProfile = await getNgoProfile(address);
+                    if (firebaseProfile) {
+                        setProfileData({
+                            name: firebaseProfile.name || '',
+                            bio: firebaseProfile.bio || '',
+                            bannerImage: firebaseProfile.bannerImage || null,
+                            profileImage: firebaseProfile.profileImage || null
+                        });
+                        setFormData(prev => ({
+                            ...prev,
+                            name: firebaseProfile.name || '',
+                            bio: firebaseProfile.bio || ''
+                        }));
+                    } else {
+                       
         const ngos = JSON.parse(localStorage.getItem('ngos') || '[]')
         if (ngos.length > 0) {
-            const latestNgo = ngos[ngos.length - 1] // Get the most recent NGO
+                            const latestNgo = ngos[ngos.length - 1]
             setProfileData({
                 name: latestNgo.ngoName,
                 bio: latestNgo.missionStatement,
@@ -62,36 +90,155 @@ const NgoProfile = () => {
                 contactEmail: latestNgo.contactEmail || '',
                 websiteLink: latestNgo.websiteLink || ''
             })
-            setNgoDetails(latestNgo) // Store all NGO data
-        }
-    }, [])
+                            setNgoDetails(latestNgo)
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error loading NGO profile from Firebase:', error);
+                    
+                    const ngos = JSON.parse(localStorage.getItem('ngos') || '[]')
+                    if (ngos.length > 0) {
+                        const latestNgo = ngos[ngos.length - 1]
+                        setProfileData({
+                            name: latestNgo.ngoName,
+                            bio: latestNgo.missionStatement,
+                            bannerImage: null,
+                            profileImage: null
+                        })
+                        setFormData({
+                            name: latestNgo.ngoName,
+                            bio: latestNgo.missionStatement,
+                            categories: latestNgo.categories || [],
+                            country: latestNgo.country || '',
+                            officeAddress: latestNgo.officeAddress || '',
+                            contactEmail: latestNgo.contactEmail || '',
+                            websiteLink: latestNgo.websiteLink || ''
+                        })
+                        setNgoDetails(latestNgo)
+                    }
+                }
+            } else {
+                
+                const ngos = JSON.parse(localStorage.getItem('ngos') || '[]')
+                if (ngos.length > 0) {
+                    const latestNgo = ngos[ngos.length - 1]
+                    setProfileData({
+                        name: latestNgo.ngoName,
+                        bio: latestNgo.missionStatement,
+                        bannerImage: null,
+                        profileImage: null
+                    })
+                    setFormData({
+                        name: latestNgo.ngoName,
+                        bio: latestNgo.missionStatement,
+                        categories: latestNgo.categories || [],
+                        country: latestNgo.country || '',
+                        officeAddress: latestNgo.officeAddress || '',
+                        contactEmail: latestNgo.contactEmail || '',
+                        websiteLink: latestNgo.websiteLink || ''
+                    })
+                    setNgoDetails(latestNgo)
+                }
+            }
+        };
+        
+        loadProfile();
+    }, [address, isConnected])
     
-    // Load created designs from localStorage
+    
     useEffect(() => {
+        const loadDesigns = async () => {
+            if (address && isConnected) {
+                try {
+                   
+                    let firebaseDesigns = await getNGODesigns(address);
+                    
+                    
+                    const designsToMigrate = firebaseDesigns.filter((design: any) => 
+                        (design.frontDesign?.dataUrl && !design.frontDesign?.url) || 
+                        (design.backDesign?.dataUrl && !design.backDesign?.url)
+                    );
+                    
+                    
+                    if (designsToMigrate.length > 0) {
+                        console.log(`Migrating ${designsToMigrate.length} NGO designs to Firebase Storage...`);
+                        await Promise.all(
+                            designsToMigrate.map((design: any) => migrateDesignImagesToFirebase(design, address, 'ngo'))
+                        );
+                        
+                        
+                        firebaseDesigns = await getNGODesigns(address);
+                    }
+                    
+                    if (firebaseDesigns && firebaseDesigns.length > 0) {
+                        
+                        const formattedDesigns = firebaseDesigns.map((design: any) => ({
+                            id: parseInt(design.id),
+                            ...design
+                        }));
+                        
+                        const sortedDesigns = formattedDesigns.sort((a: any, b: any) => 
+                            new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+                        );
+                        setCreatedDesigns(sortedDesigns);
+                    } else {
+                        
         const savedDesigns = JSON.parse(localStorage.getItem('ngoDesigns') || '[]');
         setCreatedDesigns(savedDesigns);
-    }, [])
+                    }
+                } catch (error) {
+                    console.error('Error loading NGO designs from Firebase:', error);
 
-    // Calculate statistics for NGO
-    useEffect(() => {
         const savedDesigns = JSON.parse(localStorage.getItem('ngoDesigns') || '[]');
+                    setCreatedDesigns(savedDesigns);
+                }
+            } else {
+                const savedDesigns = JSON.parse(localStorage.getItem('ngoDesigns') || '[]');
+                setCreatedDesigns(savedDesigns);
+            }
+        };
         
-        // Get donation history (when user donated to causes)
-        const donationHistory = JSON.parse(localStorage.getItem('userDonations') || '[]');
+        loadDesigns();
+    }, [address, isConnected])
+
+    useEffect(() => {
+        const calculateStats = async () => {
+            let donationHistory: any[] = [];
+            let purchaseHistory: any[] = [];
+            
+            if (address && isConnected) {
+                try {
+                    donationHistory = await getUserDonations(address);
+                    const allPurchases = await getUserPurchases(address);
+                    purchaseHistory = allPurchases.filter((purchase: any) => 
+                        purchase.creatorWallet?.toLowerCase() === address.toLowerCase() ||
+                        purchase.creatorWallet === ''
+                    );
+                } catch (error) {
+                    console.error('Error loading NGO stats from Firebase:', error);
+                    donationHistory = JSON.parse(localStorage.getItem('userDonations') || '[]');
+                    const allPurchases = JSON.parse(localStorage.getItem('ngoPurchases') || '[]');
+                    purchaseHistory = allPurchases.filter((purchase: any) => 
+                        purchase.creatorWallet?.toLowerCase() === address.toLowerCase()
+                    );
+                }
+            } else {
+                donationHistory = JSON.parse(localStorage.getItem('userDonations') || '[]');
+                const allPurchases = JSON.parse(localStorage.getItem('ngoPurchases') || '[]');
+                if (address) {
+                    purchaseHistory = allPurchases.filter((purchase: any) => 
+                        purchase.creatorWallet?.toLowerCase() === address.toLowerCase()
+                    );
+                }
+            }
         
-        // Get purchase history (when someone purchased the NGO's designs)
-        const purchaseHistory = JSON.parse(localStorage.getItem('ngoPurchases') || '[]');
-        
-        // Calculate causes supported (unique campaigns from donations)
         const uniqueCampaigns = new Set(donationHistory.map((donation: any) => donation.campaign).filter(Boolean));
         
-        // Calculate total donated (sum of all donations)
         const totalDonated = donationHistory.reduce((sum: number, donation: any) => {
             const amount = parseFloat(donation.amount?.replace(/[^\d.]/g, '') || '0');
             return sum + amount;
         }, 0);
         
-        // Calculate total profit (sum of purchases of NGO's designs)
         const totalProfit = purchaseHistory.reduce((sum: number, purchase: any) => {
             const amount = parseFloat(purchase.amount?.replace(/[^\d.]/g, '') || '0');
             return sum + amount;
@@ -101,13 +248,38 @@ const NgoProfile = () => {
             causesSupported: uniqueCampaigns.size,
             totalDonated: totalDonated,
             totalProfit: totalProfit,
-            totalDesigns: savedDesigns.length
+                totalDesigns: createdDesigns.length
         });
-    }, [createdDesigns])
+        setIsLoading(false);
+        };
 
-    const handleCategoryChange = (category: 'NFTs' | 'History' | 'Created') => {
+        calculateStats();
+    }, [createdDesigns, address, isConnected])
+
+    const handleCategoryChange = (category: 'NFTs' | 'History' | 'Created' | 'Campaigns') => {
         setActiveCategory(category);
     };
+
+    useEffect(() => {
+        const loadCampaigns = async () => {
+            if (!address) return;
+            
+            try {
+                const allCampaigns = await getAllCampaigns();
+                const myCampaigns = allCampaigns.filter((campaign: any) => 
+                    campaign.ngoWallet?.toLowerCase() === address.toLowerCase()
+                );
+                const sortedCampaigns = myCampaigns.sort((a: any, b: any) => 
+                    new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+                );
+                setCreatedCampaigns(sortedCampaigns);
+            } catch (error) {
+                console.error('Error loading campaigns:', error);
+            }
+        };
+        
+        loadCampaigns();
+    }, [address]);
 
     const handleCopyAddress = () => {
         if (address) {
@@ -150,15 +322,31 @@ const NgoProfile = () => {
     };
 
     const handleCloseModal = () => {
+        if (!isSaving) {
         setIsEditModalOpen(false);
-        setEmailError(''); // Clear email error when closing modal
+        setEmailError(''); 
+        }
     };
 
-    const handleSaveProfile = () => {
-        // Prevent saving if email is invalid
+    const handleSaveProfile = async () => {
+       
         if (emailError) {
             return;
         }
+        
+        setIsSaving(true);
+       
+        const updatedProfile = {
+            name: formData.name,
+            bio: formData.bio,
+            bannerImage: bannerImage || profileData.bannerImage,
+            profileImage: profileImage || profileData.profileImage,
+            categories: formData.categories,
+            country: formData.country,
+            officeAddress: formData.officeAddress,
+            contactEmail: formData.contactEmail,
+            websiteLink: formData.websiteLink
+        };
        
         setProfileData(prev => ({
             ...prev,
@@ -167,7 +355,7 @@ const NgoProfile = () => {
             profileImage: profileImage || prev.profileImage
         }));
         
-        // Update NGO data in localStorage
+     
         if (ngoDetails) {
             const ngos = JSON.parse(localStorage.getItem('ngos') || '[]')
             const updatedNgos = ngos.map((ngo: any) => {
@@ -186,7 +374,7 @@ const NgoProfile = () => {
             })
             localStorage.setItem('ngos', JSON.stringify(updatedNgos))
             
-            // Update ngoDetails state
+          
             setNgoDetails({
                 ...ngoDetails,
                 missionStatement: formData.bio,
@@ -199,6 +387,16 @@ const NgoProfile = () => {
         }
         
       
+        if (address && isConnected) {
+            try {
+                const result = await saveNgoProfileWithImages(address, updatedProfile);
+                console.log('NGO Profile save result:', result);
+            } catch (error) {
+                console.error('Error saving NGO profile to Firebase:', error);
+            }
+        }
+      
+        setIsSaving(false);
         setIsEditModalOpen(false);
         
      
@@ -212,13 +410,69 @@ const NgoProfile = () => {
       
     };
 
+    const handleCreateCampaign = async (campaignData: any) => {
+        console.log('Creating campaign:', campaignData);
+        console.log('Cover image file:', campaignData.coverImageFile);
+        console.log('Is File:', campaignData.coverImageFile instanceof File);
+        setIsUploadingCampaign(true);
+        
+        const campaign = {
+            id: Date.now(),
+            title: campaignData.campaignTitle,
+            category: campaignData.category.toLowerCase().replace(/\s+/g, '-'),
+            description: campaignData.description,
+            goal: campaignData.target,
+            coverImageFile: campaignData.coverImageFile,
+            ngoName: profileData.name,
+            ngoWallet: address,
+            amountRaised: 0,
+            percentage: 0,
+            createdAt: new Date().toISOString()
+        };
+        
+        console.log('Campaign object created:', {
+            ...campaign,
+            coverImageFile: campaign.coverImageFile ? 'File object' : 'No file'
+        });
+        
+      
+        try {
+            const saved = await saveCampaign(campaign);
+            console.log('Campaign saved result:', saved);
+            console.log('Saved campaign image:', saved?.image);
+            
+           
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+           
+            if (address) {
+                const allCampaigns = await getAllCampaigns();
+                console.log('All campaigns loaded:', allCampaigns);
+                const myCampaigns = allCampaigns.filter((campaign: any) => 
+                    campaign.ngoWallet?.toLowerCase() === address.toLowerCase()
+                );
+                console.log('My campaigns:', myCampaigns);
+                setCreatedCampaigns(myCampaigns);
+            }
+            
+            setIsUploadingCampaign(false);
+            setIsCampaignCreatedSuccessfully(true);
+            setTimeout(() => {
+                setIsCampaignCreatedSuccessfully(false);
+            }, 3000);
+        } catch (error) {
+            console.error('Error creating campaign:', error);
+            setIsUploadingCampaign(false);
+        }
+    };
+
     const handleInputChange = (field: string, value: string) => {
         setFormData(prev => ({
             ...prev,
             [field]: value
         }));
         
-        // Validate email when contact email is changed
+       
         if (field === 'contactEmail') {
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             if (value && !emailRegex.test(value)) {
@@ -250,6 +504,16 @@ const NgoProfile = () => {
             reader.readAsDataURL(file);
         }
     };
+
+    if (isLoading) {
+    return (
+        <div className="min-h-screen bg-white">
+            <Header />
+                <SkeletonProfile />
+                <Footer />
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-white">
@@ -342,10 +606,10 @@ const NgoProfile = () => {
                                 </div>
                             )}
                             
-                            {/* NGO Details */}
+                           
                             {ngoDetails && (
                                 <div className="mt-4 max-w-[500px]">
-                                    {/* Show More Button */}
+                           
                                     <button
                                         onClick={() => setShowMoreDetails(!showMoreDetails)}
                                         className="text-sm text-blue-600 hover:text-blue-800 font-medium"
@@ -353,7 +617,7 @@ const NgoProfile = () => {
                                         {showMoreDetails ? 'Show Less' : 'Show More'}
                                     </button>
                                     
-                                    {/* All Details */}
+                                
                                     {showMoreDetails && (
                                         <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm break-words">
                                             <div className="break-words">
@@ -406,7 +670,7 @@ const NgoProfile = () => {
                                 <Plus size={20} />
                                 Create Design
                             </Button>
-                            <Button variant="primary-bw" size="lg" className="gap-2">
+                            <Button variant="primary-bw" size="lg" className="gap-2" onClick={() => setIsCreateCampaignModalOpen(true)}>
                                 <Plus size={20} />
                                 Create Campaign
                             </Button>
@@ -468,6 +732,13 @@ const NgoProfile = () => {
                         >
                             Created
                         </Button>
+                        <Button 
+                            variant={activeCategory === 'Campaigns' ? 'primary-bw' : 'secondary'} 
+                            size="lg"
+                            onClick={() => handleCategoryChange('Campaigns')}
+                        >
+                            Campaigns
+                        </Button>
                     </div>
                     
                   
@@ -513,20 +784,22 @@ const NgoProfile = () => {
                                                     }}
                                                 />
                                                 
-                                                {/* Uploaded design overlay */}
-                                                {design.frontDesign?.dataUrl && (
+                                             
+                                                {(design.frontDesign?.dataUrl || design.frontDesign?.url) && (
                                                     <div 
                                                         className="absolute"
                                                         style={{ 
-                                                            width: '145px', 
-                                                            height: '200px',
+                                                            width: '65%', 
+                                                            height: 'auto',
+                                                            maxWidth: '145px',
+                                                            maxHeight: '200px',
                                                             top: '50%',
                                                             left: '50%',
                                                             transform: 'translate(-50%, -50%)'
                                                         }}
                                                     >
                                                         <img 
-                                                            src={design.frontDesign.dataUrl} 
+                                                            src={design.frontDesign?.url || design.frontDesign?.dataUrl} 
                                                             alt="Design" 
                                                             className="w-full h-full object-contain"
                                                         />
@@ -549,6 +822,42 @@ const NgoProfile = () => {
                                         onClick={() => navigate('/create-design', { state: { fromNgo: true } })}
                                     >
                                         Create Design
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {activeCategory === 'Campaigns' && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-40">
+                            {createdCampaigns.length > 0 ? (
+                                createdCampaigns.map((campaign) => {
+                                    const goal = campaign.goal || campaign.target || 0
+                                    const amountRaised = campaign.amountRaised || 0
+                                    const percentage = campaign.percentage || (goal > 0 ? (amountRaised / goal) * 100 : 0)
+                                    
+                                    return (
+                                        <CampaignCard
+                                            key={campaign.id}
+                                            image={campaign.image || '/src/assets/Clothimg.png'}
+                                            title={campaign.title}
+                                            amountRaised={`₦${amountRaised.toLocaleString()}`}
+                                            goal={`₦${goal.toLocaleString()}`}
+                                            percentage={percentage}
+                                            alt={campaign.title}
+                                            onClick={() => navigate(`/campaign/${campaign.id}`)}
+                                        />
+                                    )
+                                })
+                            ) : (
+                                <div className="col-span-full text-center py-12">
+                                    <p className="text-gray-500 mb-4">No campaigns created yet</p>
+                                    <Button 
+                                        variant="primary-bw" 
+                                        size="lg"
+                                        onClick={() => setIsCreateCampaignModalOpen(true)}
+                                    >
+                                        Create Campaign
                                     </Button>
                                 </div>
                             )}
@@ -585,8 +894,16 @@ const NgoProfile = () => {
                                     variant="primary-bw" 
                                     size="sm"
                                     onClick={handleSaveProfile}
+                                    disabled={isSaving}
                                 >
-                                    Save
+                                    {isSaving ? (
+                                        <>
+                                            <Loader2 className="animate-spin" size={16} />
+                                            Saving...
+                                        </>
+                                    ) : (
+                                        'Save'
+                                    )}
                                 </Button>
                             </div>
                             
@@ -666,7 +983,7 @@ const NgoProfile = () => {
                                         />
                                     </div>
                                     
-                                    {/* NGO Fields */}
+                                   
                                     {ngoDetails && (
                                         <>
                                             <div>
@@ -766,6 +1083,45 @@ const NgoProfile = () => {
             )}
             
             <Footer />
+            <CreateCampaignModal 
+                isOpen={isCreateCampaignModalOpen}
+                onClose={() => setIsCreateCampaignModalOpen(false)}
+                onSubmit={handleCreateCampaign}
+            />
+            
+          
+            {isUploadingCampaign && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                    <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 text-center">
+                        <Loader2 className="w-16 h-16 mx-auto mb-4 animate-spin text-black" />
+                        <h2 className="text-2xl font-bold mb-2">Uploading Campaign</h2>
+                        <p className="text-gray-600">Please wait while we upload your campaign...</p>
+                    </div>
+                </div>
+            )}
+            
+          
+            {isCampaignCreatedSuccessfully && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                    <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 text-center">
+                        <div className="w-16 h-16 mx-auto mb-4 bg-green-500 rounded-full flex items-center justify-center">
+                            <Check className="w-8 h-8 text-white" />
+                        </div>
+                        <h2 className="text-2xl font-bold mb-2">Campaign Created!</h2>
+                        <p className="text-gray-600 mb-6">Your campaign has been created successfully.</p>
+                        <Button 
+                            variant="primary-bw" 
+                            size="lg"
+                            onClick={() => {
+                                setIsCampaignCreatedSuccessfully(false);
+                                setActiveCategory('Campaigns');
+                            }}
+                        >
+                            View Campaigns
+                        </Button>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

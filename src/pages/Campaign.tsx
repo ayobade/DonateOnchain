@@ -5,16 +5,19 @@ import Footer from '../component/Footer'
 import Banner from '../component/Banner'
 import CampaignCard from '../component/CampaignCard'
 import FilterButton from '../component/FilterButton'
+import { SkeletonCampaignCard } from '../component/Skeleton'
 import ShopImg from '../assets/ShopImg.png'
 import { ChevronDown } from 'lucide-react'
-import { campaigns } from '../data/databank'
+import { campaigns as defaultCampaigns } from '../data/databank'
+import { getAllCampaigns } from '../utils/firebaseStorage'
 
 const Campaign = () => {
     const navigate = useNavigate()
     const [isMobileCategoryOpen, setIsMobileCategoryOpen] = useState(false)
     const [activeCategory, setActiveCategory] = useState('all')
     const [filteredCampaigns, setFilteredCampaigns] = useState<any[]>([])
-    
+    const [allCampaigns, setAllCampaigns] = useState<any[]>([])
+    const [isLoading, setIsLoading] = useState(true)
 
     const getCategoryDisplayName = (category: string) => {
         switch (category) {
@@ -34,16 +37,47 @@ const Campaign = () => {
     ]
   
     useEffect(() => {
-        setFilteredCampaigns(campaigns)
+        const loadCampaigns = async () => {
+            try {
+             
+                const firebaseCampaigns = await getAllCampaigns()
+                console.log('Firebase campaigns loaded:', firebaseCampaigns.length)
+                
+            
+                const combined = [...firebaseCampaigns, ...defaultCampaigns]
+                
+            
+                const unique = Array.from(
+                    new Map(combined.map(campaign => [campaign.id, campaign])).values()
+                )
+                
+                const sorted = unique.sort((a, b) => {
+                    const aTime = new Date(a.createdAt || 0).getTime()
+                    const bTime = new Date(b.createdAt || 0).getTime()
+                    return bTime - aTime
+                })
+                
+                setAllCampaigns(sorted)
+                setFilteredCampaigns(sorted)
+                setIsLoading(false)
+            } catch (error) {
+                console.error('Error loading campaigns:', error)
+                setAllCampaigns(defaultCampaigns)
+                setFilteredCampaigns(defaultCampaigns)
+                setIsLoading(false)
+            }
+        }
+        
+        loadCampaigns()
     }, [])
  
     const handleCategoryClick = (category: string) => {
         setActiveCategory(category)
         
         if (category === 'all') {
-            setFilteredCampaigns(campaigns)
+            setFilteredCampaigns(allCampaigns)
         } else {
-            const filtered = campaigns.filter(campaign => 
+            const filtered = allCampaigns.filter(campaign => 
                 campaign.category === category
             )
             setFilteredCampaigns(filtered)
@@ -78,7 +112,7 @@ const Campaign = () => {
             <section className="px-4 md:px-7 py-8">
                
                 <div className="flex items-center gap-4 mb-8">
-                    {/* Desktop Category Buttons */}
+                  
                     <div className="hidden md:flex items-center gap-4">
                         <FilterButton 
                             isActive={activeCategory === 'all'}
@@ -141,20 +175,33 @@ const Campaign = () => {
                 </div>
 
               
-                {filteredCampaigns.length > 0 ? (
+                {isLoading ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+                        {[...Array(5)].map((_, i) => <SkeletonCampaignCard key={i} />)}
+                    </div>
+                ) : filteredCampaigns.length > 0 ? (
                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-                         {filteredCampaigns.map((campaign) => (
-                             <CampaignCard
-                                 key={campaign.id}
-                                 image={campaign.image}
-                                 title={campaign.title}
-                                 amountRaised={campaign.amountRaised}
-                                 goal={campaign.goal}
-                                 percentage={campaign.percentage}
-                                 alt={campaign.title}
-                                 onClick={() => navigate(`/campaign/${campaign.id}`)}
-                             />
-                         ))}
+                         {filteredCampaigns.map((campaign) => {
+                            
+                             const imageUrl = campaign.image || campaign.coverImageFile
+                             const campaignTitle = campaign.title || campaign.name
+                             const goal = campaign.goal || campaign.target || 0
+                             const amountRaised = campaign.amountRaised || 0
+                             const percentage = campaign.percentage || (goal > 0 ? (amountRaised / goal) * 100 : 0)
+                             
+                             return (
+                                 <CampaignCard
+                                     key={campaign.id}
+                                     image={imageUrl}
+                                     title={campaignTitle}
+                                     amountRaised={amountRaised}
+                                     goal={goal}
+                                     percentage={percentage}
+                                     alt={campaignTitle}
+                                     onClick={() => navigate(`/campaign/${campaign.id}`)}
+                                 />
+                             )
+                         })}
                      </div>
                 ) : (
                     <div className="text-center py-16">
