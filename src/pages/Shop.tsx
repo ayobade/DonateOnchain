@@ -529,21 +529,58 @@ const Shop = () => {
                                      >
                                          <div className="rounded-2xl bg-[#eeeeee] mb-4">
                                         <div className="aspect-square rounded-xl overflow-hidden bg-[#eeeeee] flex items-center justify-center relative">
-                                                {item.design.frontDesign?.url ? (
-                                                    <img 
-                                                        src={item.design.frontDesign.url} 
-                                                        alt={item.title}
-                                                        className="w-full h-full object-contain"
-                                                    />
-                                                ) : item.design.frontDesign?.dataUrl ? (
-                                                    <img 
-                                                        src={item.design.frontDesign.dataUrl} 
-                                                        alt={item.title}
-                                                        className="w-full h-full object-contain"
-                                                    />
-                                                ) : (
+                                                <img 
+                                                    src="/shirtfront.png" 
+                                                    alt="Shirt Mockup" 
+                                                    className="absolute inset-0 w-full h-full object-cover rounded-xl"
+                                                    style={{ 
+                                                        filter: item.design.color === '#FFFFFF' ? 'none' : 
+                                                               item.design.color === '#000000' ? 'brightness(0)' : 'none'
+                                                    }}
+                                                />
+                                                {item.design.frontDesign?.url && (
+                                                    <div 
+                                                        className="absolute"
+                                                        style={{ 
+                                                            width: '50%', 
+                                                            height: 'auto',
+                                                            maxWidth: '145px',
+                                                            maxHeight: '200px',
+                                                            top: '50%',
+                                                            left: '50%',
+                                                            transform: 'translate(-50%, -50%)'
+                                                        }}
+                                                    >
+                                                        <img 
+                                                            src={item.design.frontDesign.url} 
+                                                            alt="Design" 
+                                                            className="w-full h-full object-contain"
+                                                        />
+                                                    </div>
+                                                )}
+                                                {!item.design.frontDesign?.url && item.design.frontDesign?.dataUrl && (
+                                                    <div 
+                                                        className="absolute"
+                                                        style={{ 
+                                                            width: '50%', 
+                                                            height: 'auto',
+                                                            maxWidth: '145px',
+                                                            maxHeight: '200px',
+                                                            top: '50%',
+                                                            left: '50%',
+                                                            transform: 'translate(-50%, -50%)'
+                                                        }}
+                                                    >
+                                                        <img 
+                                                            src={item.design.frontDesign.dataUrl} 
+                                                            alt="Design" 
+                                                            className="w-full h-full object-contain"
+                                                        />
+                                                    </div>
+                                                )}
+                                                {!item.design.frontDesign?.url && !item.design.frontDesign?.dataUrl && (
                                                     <div className="text-center text-gray-500">
-                                                        <div className="text-4xl mb-2">👟</div>
+                                                        <div className="text-4xl mb-2">👕</div>
                                                         <p className="text-sm">{item.design.type}</p>
                                                     </div>
                                                 )}
