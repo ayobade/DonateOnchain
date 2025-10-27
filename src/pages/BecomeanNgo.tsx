@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAccount } from 'wagmi'
+import { reownAppKit } from '../config/reownConfig'
 import Header from '../component/Header'
 import Footer from '../component/Footer'
 import { ChevronDown, Upload, CheckCircle, Clock } from 'lucide-react'
@@ -47,7 +48,6 @@ const BecomeanNgo = () => {
     const [registrationCert, setRegistrationCert] = useState<File | null>(null)
     const [proofOfAddress, setProofOfAddress] = useState<File | null>(null)
     const [organizerId, setOrganizerId] = useState<File | null>(null)
-    const [walletAddress, setWalletAddress] = useState('')
     const [preferredNetwork, setPreferredNetwork] = useState('')
     const [accuracyConfirmed, setAccuracyConfirmed] = useState(false)
     const [policyAccepted, setPolicyAccepted] = useState(false)
@@ -90,10 +90,8 @@ const BecomeanNgo = () => {
         }
     }
 
-    const handleConnectWallet = () => {
-        // In a real implementation, this would connect to the user's wallet
-        // For now, we'll simulate a wallet address
-        setWalletAddress('0x1234567890abcdef1234567890abcdef12345678')
+    const handleOpenWallet = async () => {
+        await reownAppKit.open()
     }
 
     const isSection1Valid = () => {
@@ -110,7 +108,7 @@ const BecomeanNgo = () => {
     }
 
     const isSection3Valid = () => {
-        return walletAddress !== '' && preferredNetwork !== ''
+        return !!address && preferredNetwork !== ''
     }
 
     const isSection4Valid = () => {
@@ -118,7 +116,8 @@ const BecomeanNgo = () => {
     }
 
     const handleSubmit = () => {
-        // Save NGO data to localStorage
+        if (!address) return
+        
         const ngoData = {
             id: Date.now(),
             ngoName,
@@ -128,9 +127,9 @@ const BecomeanNgo = () => {
             officeAddress,
             contactEmail,
             websiteLink,
-            walletAddress,
+            walletAddress: address,
             preferredNetwork,
-            connectedWalletAddress: address, // Store the connected wallet address
+            connectedWalletAddress: address,
             verified: false,
             createdAt: new Date().toISOString()
         }
@@ -139,7 +138,6 @@ const BecomeanNgo = () => {
         existingNgos.push(ngoData)
         localStorage.setItem('ngos', JSON.stringify(existingNgos))
 
-        // Show success modal
         setShowSuccessModal(true)
     }
 
@@ -186,10 +184,10 @@ const BecomeanNgo = () => {
                                 Please connect your wallet to apply to become an NGO.
                             </p>
                             <button
-                                onClick={() => navigate('/')}
+                                onClick={handleOpenWallet}
                                 className="bg-black text-white rounded-full px-8 py-3 text-sm font-semibold hover:bg-gray-800 transition-colors"
                             >
-                                Back to Home
+                                Connect Wallet
                             </button>
                         </div>
                     </div>
@@ -505,13 +503,13 @@ const BecomeanNgo = () => {
                                 <label className="block text-sm font-medium text-black mb-2">
                                     11. Connect Your Wallet <span className="text-red-500">*</span>
                                 </label>
-                                {walletAddress ? (
+                                {address ? (
                                     <div className="px-4 py-3 border border-green-300 rounded-lg bg-green-50">
-                                        <p className="text-sm text-green-800">Connected: {walletAddress.substring(0, 10)}...{walletAddress.substring(walletAddress.length - 8)}</p>
+                                        <p className="text-sm text-green-800">Connected: {address.substring(0, 10)}...{address.substring(address.length - 8)}</p>
                                     </div>
                                 ) : (
                                     <button
-                                        onClick={handleConnectWallet}
+                                        onClick={handleOpenWallet}
                                         className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg hover:border-black transition-colors text-black font-medium"
                                     >
                                         Connect Wallet

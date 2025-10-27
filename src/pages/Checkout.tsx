@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronDown } from 'lucide-react'
 import Header from "../component/Header"
@@ -6,12 +6,16 @@ import Footer from "../component/Footer"
 import Button from "../component/Button"
 import { useCart } from '../context/CartContext'
 import { products } from '../data/databank'
+import { useAccount } from 'wagmi'
+import { reownAppKit } from '../config/reownConfig'
 
 const Checkout = () => {
     const navigate = useNavigate()
     const { cartItems, clearCart } = useCart()
+    const { isConnected } = useAccount()
     const [showSuccessModal, setShowSuccessModal] = useState(false)
     const [isProcessing, setIsProcessing] = useState(false)
+    const [showConnectWalletModal, setShowConnectWalletModal] = useState(false)
     const [formData, setFormData] = useState({
         email: '',
         firstName: '',
@@ -53,15 +57,39 @@ const Checkout = () => {
         }))
     }
 
-    const handlePaymentMethodSelect = (method: string) => {
+    const handlePaymentMethodSelect = async (method: string) => {
+        if (!isConnected) {
+            setShowConnectWalletModal(true)
+            return
+        }
+        
         setFormData(prev => ({
             ...prev,
             paymentMethod: method
         }))
     }
 
+    useEffect(() => {
+        if (isConnected && !formData.paymentMethod) {
+            setFormData(prev => ({
+                ...prev,
+                paymentMethod: 'metamask'
+            }))
+        }
+    }, [isConnected, formData.paymentMethod])
+
+    const handleConnectWallet = async () => {
+        setShowConnectWalletModal(false)
+        await reownAppKit.open()
+    }
+
     const handleCheckout = async () => {
         if (!isFormValid()) return
+        
+        if (!isConnected) {
+            setShowConnectWalletModal(true)
+            return
+        }
         
         setIsProcessing(true)
         console.log('Processing checkout with:', formData)
@@ -255,11 +283,11 @@ const Checkout = () => {
                                     }`}>
                                         <span className="text-black font-medium">Metamask *</span>
                                         <Button 
-                                            variant="primary-bw" 
+                                            variant={isConnected ? "secondary" : "primary-bw"} 
                                             size="sm"
                                             onClick={() => handlePaymentMethodSelect('metamask')}
                                         >
-                                            Connect Wallet
+                                            {isConnected ? 'Connected' : 'Connect Wallet'}
                                         </Button>
                                     </div>
                                     
@@ -270,11 +298,11 @@ const Checkout = () => {
                                     }`}>
                                         <span className="text-black font-medium">Hashpack *</span>
                                         <Button 
-                                            variant="primary-bw" 
+                                            variant={isConnected ? "secondary" : "primary-bw"} 
                                             size="sm"
                                             onClick={() => handlePaymentMethodSelect('hashpack')}
                                         >
-                                            Connect Wallet
+                                            {isConnected ? 'Connected' : 'Connect Wallet'}
                                         </Button>
                                     </div>
                                 </div>
@@ -340,12 +368,19 @@ const Checkout = () => {
 
                         
                             <div className="mt-8">
+                                {!isConnected && (
+                                    <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                        <p className="text-sm text-yellow-800">
+                                            Please connect your wallet to complete the order.
+                                        </p>
+                                    </div>
+                                )}
                                 <Button 
                                     variant="primary-bw" 
                                     size="lg" 
                                     className="w-full"
                                     onClick={handleCheckout}
-                                    disabled={!isFormValid() || isProcessing}
+                                    disabled={!isFormValid() || isProcessing || !isConnected}
                                 >
                                     {isProcessing ? 'Processing...' : 'Complete Order'}
                                 </Button>
@@ -400,6 +435,47 @@ const Checkout = () => {
                         >
                             Continue Shopping
                         </Button>
+                    </div>
+                </div>
+            )}
+
+            {/* Connect Wallet Modal */}
+            {showConnectWalletModal && (
+                <div 
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm"
+                    onClick={() => setShowConnectWalletModal(false)}
+                >
+                    <div 
+                        className="bg-white rounded-lg p-8 max-w-md mx-4 text-center shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
+                            <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                        </div>
+                        <h2 className="text-2xl font-bold text-black mb-2">Connect Your Wallet</h2>
+                        <p className="text-gray-600 mb-6">
+                            Please connect your wallet to continue with the checkout process.
+                        </p>
+                        <div className="space-y-3">
+                            <Button 
+                                variant="primary-bw" 
+                                size="lg" 
+                                className="w-full"
+                                onClick={handleConnectWallet}
+                            >
+                                Connect Wallet
+                            </Button>
+                            <Button 
+                                variant="secondary" 
+                                size="lg" 
+                                className="w-full"
+                                onClick={() => setShowConnectWalletModal(false)}
+                            >
+                                Cancel
+                            </Button>
+                        </div>
                     </div>
                 </div>
             )}
