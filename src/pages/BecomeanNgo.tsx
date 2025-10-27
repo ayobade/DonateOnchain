@@ -1,11 +1,39 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAccount } from 'wagmi'
 import Header from '../component/Header'
 import Footer from '../component/Footer'
-import { ChevronDown, Upload, CheckCircle } from 'lucide-react'
+import { ChevronDown, Upload, CheckCircle, Clock } from 'lucide-react'
 
 const BecomeanNgo = () => {
     const navigate = useNavigate()
+    const { address, isConnected } = useAccount()
+    const [hasAlreadyApplied, setHasAlreadyApplied] = useState(false)
+    const [existingNgoData, setExistingNgoData] = useState<any>(null)
+    
+    // Check if user has already applied (based on wallet address)
+    useEffect(() => {
+        if (!isConnected || !address) {
+            setHasAlreadyApplied(false)
+            setExistingNgoData(null)
+            return
+        }
+        
+        const ngos = JSON.parse(localStorage.getItem('ngos') || '[]')
+        // Find NGO application that matches the connected wallet address
+        const userNgo = ngos.find((ngo: any) => 
+            ngo.connectedWalletAddress?.toLowerCase() === address.toLowerCase() ||
+            ngo.walletAddress?.toLowerCase() === address.toLowerCase()
+        )
+        
+        if (userNgo) {
+            setHasAlreadyApplied(true)
+            setExistingNgoData(userNgo)
+        } else {
+            setHasAlreadyApplied(false)
+            setExistingNgoData(null)
+        }
+    }, [address, isConnected])
     
     // Form state
     const [currentSection, setCurrentSection] = useState(1)
@@ -102,6 +130,7 @@ const BecomeanNgo = () => {
             websiteLink,
             walletAddress,
             preferredNetwork,
+            connectedWalletAddress: address, // Store the connected wallet address
             verified: false,
             createdAt: new Date().toISOString()
         }
@@ -112,11 +141,6 @@ const BecomeanNgo = () => {
 
         // Show success modal
         setShowSuccessModal(true)
-
-        // Redirect to NGO profile after 3 seconds
-        setTimeout(() => {
-            navigate('/ngo-profile')
-        }, 3000)
     }
 
     const nextSection = () => {
@@ -145,7 +169,82 @@ const BecomeanNgo = () => {
         <div>
             <Header />
             
-            <section className="px-4 md:px-7 py-12 bg-gray-50">
+            {/* Wallet Not Connected Message */}
+            {!isConnected && (
+                <section className="px-4 md:px-7 py-20 bg-gray-50 min-h-[60vh] flex items-center">
+                    <div className="max-w-2xl mx-auto w-full">
+                        <div className="bg-white rounded-2xl p-8 md:p-12 text-center shadow-sm">
+                            <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                </svg>
+                            </div>
+                            <h1 className="text-3xl md:text-4xl font-bold text-black mb-4">
+                                Connect Your Wallet
+                            </h1>
+                            <p className="text-gray-600 mb-8 text-lg">
+                                Please connect your wallet to apply to become an NGO.
+                            </p>
+                            <button
+                                onClick={() => navigate('/')}
+                                className="bg-black text-white rounded-full px-8 py-3 text-sm font-semibold hover:bg-gray-800 transition-colors"
+                            >
+                                Back to Home
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            )}
+
+            {/* Already Applied Message */}
+            {isConnected && hasAlreadyApplied && (
+                <section className="px-4 md:px-7 py-20 bg-gray-50 min-h-[60vh] flex items-center">
+                    <div className="max-w-2xl mx-auto w-full">
+                        <div className="bg-white rounded-2xl p-8 md:p-12 text-center shadow-sm">
+                            <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <Clock className="w-10 h-10 text-yellow-600" />
+                            </div>
+                            <h1 className="text-3xl md:text-4xl font-bold text-black mb-4">
+                                Application Submitted Successfully!
+                            </h1>
+                            <p className="text-gray-600 mb-6 text-lg">
+                                You have already submitted your application to become an NGO.
+                            </p>
+                            <div className="bg-gray-50 rounded-lg p-6 mb-6">
+                                <p className="text-sm text-gray-500 mb-4">
+                                    Status: <span className="font-semibold text-yellow-600">Awaiting Verification</span>
+                                </p>
+                                {existingNgoData && (
+                                    <div className="text-left space-y-2">
+                                        <p className="text-sm">
+                                            <span className="font-medium text-black">Organization:</span> {existingNgoData.ngoName}
+                                        </p>
+                                        <p className="text-sm">
+                                            <span className="font-medium text-black">Submitted:</span> {new Date(existingNgoData.createdAt).toLocaleDateString()}
+                                        </p>
+                                        <p className="text-sm">
+                                            <span className="font-medium text-black">Email:</span> {existingNgoData.contactEmail}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                            <p className="text-gray-600 mb-8">
+                                Our team is reviewing your application. You'll receive a notification once your NGO profile is approved — after which you can start creating fundraising campaigns and accepting crypto donations.
+                            </p>
+                            <button
+                                onClick={() => navigate('/')}
+                                className="bg-black text-white rounded-full px-8 py-3 text-sm font-semibold hover:bg-gray-800 transition-colors"
+                            >
+                                Back to Home
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            )}
+
+            {/* Application Form */}
+            {isConnected && !hasAlreadyApplied && (
+                <section className="px-4 md:px-7 py-12 bg-gray-50">
                 <div className="max-w-4xl mx-auto">
                     {/* Page Title */}
                     <div className="text-center mb-8">
@@ -535,6 +634,7 @@ const BecomeanNgo = () => {
                     </div>
                 </div>
             </section>
+            )}
 
             {/* Success Modal */}
             {showSuccessModal && (
@@ -546,7 +646,12 @@ const BecomeanNgo = () => {
                             Your NGO profile has been submitted for verification.
                             You'll receive a notification once approved — after which you can start creating fundraising campaigns and accepting crypto donations.
                         </p>
-                        <p className="text-sm text-gray-500">Redirecting to your profile...</p>
+                        <button
+                            onClick={() => navigate('/')}
+                            className="bg-black text-white rounded-full px-8 py-3 text-sm font-semibold hover:bg-gray-800 transition-colors"
+                        >
+                            Back to Home
+                        </button>
                     </div>
                 </div>
             )}

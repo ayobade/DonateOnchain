@@ -1,24 +1,26 @@
 import Header from "../component/Header";
 import Footer from "../component/Footer";
 import Button from "../component/Button";
-import NFTcard from "../component/NFTcard";
-import { Plus, X, Camera } from "lucide-react";
+import { Plus, X, Camera, Copy, Check } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAccount } from "wagmi";
 
 const NgoProfile = () => {
     const navigate = useNavigate();
+    const { address, isConnected } = useAccount();
     const [activeCategory, setActiveCategory] = useState<'NFTs' | 'History' | 'Created'>('NFTs');
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [copied, setCopied] = useState(false);
     const [profileData, setProfileData] = useState({
-        name: 'OluwaDayo',
-        bio: 'Design with purpose turn your creativity into meaningful contributions that support real-world causes.',
+        name: '',
+        bio: '',
         bannerImage: null as string | null,
         profileImage: null as string | null
     });
     const [formData, setFormData] = useState({
-        name: 'OluwaDayo',
-        bio: 'Design with purpose turn your creativity into meaningful contributions that support real-world causes.',
+        name: '',
+        bio: '',
         categories: [] as string[],
         country: '',
         officeAddress: '',
@@ -72,28 +74,27 @@ const NgoProfile = () => {
 
     // Calculate statistics for NGO
     useEffect(() => {
-        const cartItems = JSON.parse(localStorage.getItem('cart') || '[]');
         const savedDesigns = JSON.parse(localStorage.getItem('ngoDesigns') || '[]');
         
-        // Calculate causes supported (unique campaigns from NGO designs)
-        const uniqueCampaigns = new Set(savedDesigns.map((design: any) => design.campaign).filter(Boolean));
+        // Get donation history (when user donated to causes)
+        const donationHistory = JSON.parse(localStorage.getItem('userDonations') || '[]');
         
-        // Calculate total donated (sum of cart items that are NGO designs)
-        const ngoCartItems = cartItems.filter((item: any) => item.isNgo);
-        const totalDonated = ngoCartItems.reduce((sum: number, item: any) => {
-            const price = parseFloat(item.price?.replace(/[^\d.]/g, '') || '0');
-            return sum + price;
+        // Get purchase history (when someone purchased the NGO's designs)
+        const purchaseHistory = JSON.parse(localStorage.getItem('ngoPurchases') || '[]');
+        
+        // Calculate causes supported (unique campaigns from donations)
+        const uniqueCampaigns = new Set(donationHistory.map((donation: any) => donation.campaign).filter(Boolean));
+        
+        // Calculate total donated (sum of all donations)
+        const totalDonated = donationHistory.reduce((sum: number, donation: any) => {
+            const amount = parseFloat(donation.amount?.replace(/[^\d.]/g, '') || '0');
+            return sum + amount;
         }, 0);
         
-        // Calculate total profit (sum of purchased NGO designs from cart, not created designs)
-        // Profit should only count when someone purchases the NGO's designs
-        const totalProfit = cartItems.reduce((sum: number, item: any) => {
-            // Only count items that are NGO's designs (have pieceName and isNgo is true)
-            if (item.pieceName && item.isNgo) {
-                const price = parseFloat(item.price?.replace(/[^\d.]/g, '') || '0');
-                return sum + price;
-            }
-            return sum;
+        // Calculate total profit (sum of purchases of NGO's designs)
+        const totalProfit = purchaseHistory.reduce((sum: number, purchase: any) => {
+            const amount = parseFloat(purchase.amount?.replace(/[^\d.]/g, '') || '0');
+            return sum + amount;
         }, 0);
         
         setStatistics({
@@ -106,6 +107,19 @@ const NgoProfile = () => {
 
     const handleCategoryChange = (category: 'NFTs' | 'History' | 'Created') => {
         setActiveCategory(category);
+    };
+
+    const handleCopyAddress = () => {
+        if (address) {
+            navigator.clipboard.writeText(address);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
+    };
+
+    const shortenAddress = (address: string) => {
+        if (!address) return '';
+        return `${address.slice(0, 6)}...${address.slice(-4)}`;
     };
 
     const handleEditProfile = () => {
@@ -281,7 +295,7 @@ const NgoProfile = () => {
                      
                         <div className="flex-1">
                             <div className="flex items-center gap-3 mb-2">
-                                <h1 className="text-2xl md:text-4xl font-bold text-black">{profileData.name}</h1>
+                                <h1 className="text-2xl md:text-4xl font-bold text-black">{profileData.name || 'NGO'}</h1>
                                 <Button 
                                     variant="secondary" 
                                     size="sm"
@@ -296,8 +310,8 @@ const NgoProfile = () => {
                             </div>
                             <div className="max-w-md">
                                 <p className={`text-black text-sm leading-relaxed break-words ${!showFullBio ? 'line-clamp-2 overflow-hidden' : ''}`}>
-                                    {profileData.bio}
-                                </p>
+                                {profileData.bio || ''}
+                            </p>
                                 {profileData.bio && profileData.bio.length > 100 && (
                                     <button
                                         onClick={() => setShowFullBio(!showFullBio)}
@@ -307,6 +321,26 @@ const NgoProfile = () => {
                                     </button>
                                 )}
                             </div>
+                            {isConnected && address && (
+                                <div className="flex items-center gap-2 mt-3">
+                                    <button
+                                        onClick={handleCopyAddress}
+                                        className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-sm font-mono"
+                                    >
+                                        {copied ? (
+                                            <>
+                                                <Check size={16} className="text-green-600" />
+                                                <span className="text-green-600">Copied!</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Copy size={16} className="text-gray-600" />
+                                                <span className="text-gray-700">{shortenAddress(address)}</span>
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            )}
                             
                             {/* NGO Details */}
                             {ngoDetails && (
@@ -438,91 +472,21 @@ const NgoProfile = () => {
                     
                   
                     {activeCategory === 'NFTs' && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-40">
-                            <NFTcard
-                                image="/src/assets/Clothimg.png"
-                                title="Live In Balance NFT"
-                            />
-                            <NFTcard
-                                image="/src/assets/Clothimg.png"
-                                title="Live In Balance NFT"
-                            />
-                            <NFTcard
-                                image="/src/assets/Clothimg.png"
-                                title="Live In Balance NFT"
-                            />
-                            <NFTcard
-                                image="/src/assets/Clothimg.png"
-                                title="Live In Balance NFT"
-                            />
-                            <NFTcard
-                                image="/src/assets/Clothimg.png"
-                                title="Live In Balance NFT"
-                            />
-                            <NFTcard
-                                image="/src/assets/Clothimg.png"
-                                title="Live In Balance NFT"
-                            />
-                            <NFTcard
-                                image="/src/assets/Clothimg.png"
-                                title="Live In Balance NFT"
-                            />
-                            <NFTcard
-                                image="/src/assets/Clothimg.png"
-                                title="Live In Balance NFT"
-                            />
+                        <div className="mb-40">
+                            <div className="text-center py-12">
+                                <div className="text-6xl mb-4">🎫</div>
+                                <h3 className="text-xl font-semibold text-gray-600 mb-2">No NFTs collected yet</h3>
+                                <p className="text-gray-500">Your collected NFTs will appear here</p>
+                            </div>
                         </div>
                     )}
 
                     {activeCategory === 'History' && (
-                        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden mb-40">
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead className="bg-black text-white">
-                                        <tr>
-                                            <th className="px-6 py-4 text-left text-sm font-medium">ID</th>
-                                            <th className="px-6 py-4 text-left text-sm font-medium">Details</th>
-                                            <th className="px-6 py-4 text-left text-sm font-medium">Causes</th>
-                                            <th className="px-6 py-4 text-left text-sm font-medium">Amount</th>
-                                            <th className="px-6 py-4 text-left text-sm font-medium">Split</th>
-                                            <th className="px-6 py-4 text-left text-sm font-medium">Status</th>
-                                            <th className="px-6 py-4 text-left text-sm font-medium">Date</th>
-                                            <th className="px-6 py-4 text-left text-sm font-medium">Blockchain</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white">
-                                        <tr className="border-b border-gray-200">
-                                            <td className="px-6 py-4 text-sm text-gray-900">2334</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">Live in Balance</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">Books for Africa</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">25HBAR</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">10%</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">Completed</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">20/03/2025</td>
-                                            <td className="px-6 py-4 text-sm text-blue-600 cursor-pointer hover:underline">View</td>
-                                        </tr>
-                                        <tr className="border-b border-gray-200">
-                                            <td className="px-6 py-4 text-sm text-gray-900">2334</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">Purchased Live in Balance</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">Save Gaza</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">10USDT</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">20%</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">Completed</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">20/03/2025</td>
-                                            <td className="px-6 py-4 text-sm text-blue-600 cursor-pointer hover:underline">View</td>
-                                        </tr>
-                                        <tr className="border-b border-gray-200">
-                                            <td className="px-6 py-4 text-sm text-gray-900">2334</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">Purchased Live in Balance</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">Purchased Live in Balance</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">50USDT</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">10%</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">Completed</td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">20/03/2025</td>
-                                            <td className="px-6 py-4 text-sm text-blue-600 cursor-pointer hover:underline">View</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                        <div className="mb-40">
+                            <div className="text-center py-12">
+                                <div className="text-6xl mb-4">📜</div>
+                                <h3 className="text-xl font-semibold text-gray-600 mb-2">No transaction history</h3>
+                                <p className="text-gray-500">Your purchase and donation history will appear here</p>
                             </div>
                         </div>
                     )}

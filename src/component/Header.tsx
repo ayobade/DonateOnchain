@@ -4,11 +4,19 @@ import { useNavigate } from 'react-router-dom'
 import Button from './Button'
 import DonateLogo from '../assets/DonateLogo.png'
 import { useCart } from '../context/CartContext'
-import { products } from '../data/databank'
+import { products, campaigns, causes, creators } from '../data/databank'
+import { reownAppKit } from '../config/reownConfig'
+import { useAccount, useDisconnect, useChainId, useSwitchChain } from 'wagmi'
+
+import { hederaTestnet } from '../config/reownConfig'
 
 const Header = () => {
     const navigate = useNavigate()
     const { getCartItemCount } = useCart()
+    const { address, isConnected } = useAccount()
+    const { disconnect } = useDisconnect()
+    const chainId = useChainId()
+    const { switchChain } = useSwitchChain()
     const [isShopOpen, setIsShopOpen] = useState(false)
     const [shopEntered, setShopEntered] = useState(false)
     const [activeNav, setActiveNav] = useState<string>('')
@@ -16,13 +24,23 @@ const Header = () => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
     const [isMobileShopOpen, setIsMobileShopOpen] = useState(false)
     const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
+    const [isWalletMenuOpen, setIsWalletMenuOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
     const [searchResults, setSearchResults] = useState<any[]>([])
+
+    const shortenAddress = (address: string) => {
+        if (!address) return ''
+        return `${address.slice(0, 6)}...${address.slice(-4)}`
+    }
 
     const handleShopItemClick = () => {
         setIsShopOpen(false)
         navigate('/shop')
     }
+
+    const handleConnect = async () => {
+        await reownAppKit.open() // opens Reown modal
+      }
 
     const handleSearch = (query: string) => {
         setSearchQuery(query)
@@ -31,25 +49,78 @@ const Header = () => {
             return
         }
         
-        const results = products.filter(product => 
-            product.title.toLowerCase().includes(query.toLowerCase()) ||
-            product.creator.toLowerCase().includes(query.toLowerCase()) ||
-            product.category.toLowerCase().includes(query.toLowerCase())
-        )
-        setSearchResults(results)
+        const searchTerm = query.toLowerCase()
+        
+        // Search products
+        const productResults = products.filter(product => 
+            product.title.toLowerCase().includes(searchTerm) ||
+            product.creator.toLowerCase().includes(searchTerm) ||
+            product.category.toLowerCase().includes(searchTerm) ||
+            product.description.toLowerCase().includes(searchTerm)
+        ).map(p => ({ ...p, type: 'product' }))
+        
+        // Search campaigns
+        const campaignResults = campaigns.filter(campaign => 
+            campaign.title.toLowerCase().includes(searchTerm) ||
+            campaign.category.toLowerCase().includes(searchTerm) ||
+            campaign.about.toLowerCase().includes(searchTerm)
+        ).map(c => ({ ...c, type: 'campaign' }))
+        
+        // Search causes
+        const causeResults = causes.filter(cause => 
+            cause.title.toLowerCase().includes(searchTerm) ||
+            cause.organization.toLowerCase().includes(searchTerm)
+        ).map(c => ({ ...c, type: 'cause' }))
+        
+        // Search creators
+        const creatorResults = creators.filter(creator => 
+            creator.name.toLowerCase().includes(searchTerm) ||
+            creator.role.toLowerCase().includes(searchTerm)
+        ).map(c => ({ ...c, type: 'creator' }))
+        
+        // Search user designs
+        const userDesigns = JSON.parse(localStorage.getItem('userDesigns') || '[]')
+        const ngoDesigns = JSON.parse(localStorage.getItem('ngoDesigns') || '[]')
+        const allDesigns = [...userDesigns, ...ngoDesigns]
+        
+        const designResults = allDesigns.filter((design: any) => 
+            design.pieceName?.toLowerCase().includes(searchTerm) ||
+            design.campaign?.toLowerCase().includes(searchTerm) ||
+            design.description?.toLowerCase().includes(searchTerm) ||
+            design.type?.toLowerCase().includes(searchTerm)
+        ).map((d: any) => ({ ...d, type: 'design' }))
+        
+        const allResults = [...productResults, ...campaignResults, ...causeResults, ...creatorResults, ...designResults]
+        setSearchResults(allResults)
     }
 
-    const handleSearchResultClick = (productId: number) => {
+    const handleSearchResultClick = (item: any) => {
         setIsSearchOpen(false)
         setSearchQuery('')
         setSearchResults([])
-        navigate(`/product/${productId}`)
-    }
-
-    const handleAccountMenuClick = () => {
-        setIsAccountMenuOpen(!isAccountMenuOpen)
-        setIsShopOpen(false)
-        setIsSearchOpen(false)
+        
+        // Navigate based on item type
+        switch (item.type) {
+            case 'product':
+                navigate(`/product/${item.id}`)
+                break
+            case 'campaign':
+                navigate(`/campaign/${item.id}`)
+                break
+            case 'design':
+                navigate(`/product/${item.id}`)
+                break
+            case 'cause':
+                // Causes don't have individual pages yet, but could navigate to campaigns
+                navigate('/campaign')
+                break
+            case 'creator':
+                // Creators don't have individual pages yet
+                navigate('/')
+                break
+            default:
+                navigate('/')
+        }
     }
 
     const handleProfileClick = () => {
@@ -68,6 +139,35 @@ const Header = () => {
         
         console.log('Sign out')
     }
+
+    const handleDisconnect = () => {
+        disconnect()
+        setIsWalletMenuOpen(false)
+        
+        // Clear NGO applications when wallet is disconnected
+        // They are tied to the wallet address
+        localStorage.removeItem('ngos')
+        
+        navigate('/')
+    }
+
+    const handleCopyAddress = () => {
+        if (address) {
+            navigator.clipboard.writeText(address)
+            setIsWalletMenuOpen(false)
+        }
+    }
+
+    const handleSwitchNetwork = (chainIdToSwitch: number) => {
+        if (switchChain) {
+            switchChain({ chainId: chainIdToSwitch })
+        }
+    }
+
+    const networks = [
+      
+        { id: hederaTestnet.id, name: 'Hedera Testnet' },
+    ]
 
     useEffect(() => {
         if (isShopOpen) {
@@ -98,6 +198,17 @@ const Header = () => {
             document.body.style.paddingTop = '0'
         }
     }, [])
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (isWalletMenuOpen && !(event.target as HTMLElement).closest('.wallet-menu')) {
+                setIsWalletMenuOpen(false)
+            }
+        }
+
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => document.removeEventListener('mousedown', handleClickOutside)
+    }, [isWalletMenuOpen])
 
     return (
         <header className="fixed top-0 left-0 right-0 z-20 w-full bg-white px-4 md:px-7 py-[18px] flex items-center justify-between max-h-24">
@@ -163,13 +274,91 @@ const Header = () => {
                     )}
                 </button>
                 <div className="relative z-30 hidden md:block">
-                    <Button 
-                        variant="primary" 
-                        size="md"
-                        onClick={handleAccountMenuClick}
-                    >
-                        Account
-                    </Button>
+                    {!isConnected ? (
+                        <Button 
+                            variant="primary" 
+                            size="md"
+                            onClick={handleConnect}
+                        >
+                            Connect Wallet
+                        </Button>
+                    ) : (
+                        <div className="relative wallet-menu">
+                            <Button
+                                variant="secondary"
+                                size="md"
+                                onClick={() => setIsWalletMenuOpen(!isWalletMenuOpen)}
+                                className="gap-2"
+                            >
+                                <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                                    {address ? address.slice(2, 4).toUpperCase() : '0x'}
+                                </div>
+                                <span className="font-medium">{shortenAddress(address as string)}</span>
+                                <ChevronDown size={16} className={`transition-transform ${isWalletMenuOpen ? 'rotate-180' : ''}`} />
+                            </Button>
+                            
+                            {isWalletMenuOpen && (
+                                <div className="absolute right-0 top-full mt-2 bg-white rounded-lg shadow-xl border border-gray-200 w-64 z-50">
+                                    <div className="p-4 border-b border-gray-200">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                                                {address ? address.slice(2, 4).toUpperCase() : '0x'}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-gray-600">Connected</p>
+                                                <p className="text-xs text-gray-500 truncate">{address}</p>
+                                            </div>
+                                        </div>
+                                        <div className="mt-3 pt-3 border-t border-gray-200">
+                                            <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Network</p>
+                                            <select
+                                                value={chainId}
+                                                onChange={(e) => handleSwitchNetwork(Number(e.target.value))}
+                                                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            >
+                                                {networks.map((network) => (
+                                                    <option key={network.id} value={network.id}>
+                                                        {network.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div className="py-2">
+                                        <button
+                                            onClick={handleCopyAddress}
+                                            className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition-colors flex items-center gap-3"
+                                        >
+                                            <User size={18} className="text-gray-600" />
+                                            <span>Copy Address</span>
+                                        </button>
+                                        <button
+                                            onClick={handleProfileClick}
+                                            className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition-colors flex items-center gap-3"
+                                        >
+                                            <User size={18} className="text-gray-600" />
+                                            <span>Profile</span>
+                                        </button>
+                                        <button
+                                            onClick={handleOrdersClick}
+                                            className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition-colors flex items-center gap-3"
+                                        >
+                                            <Package size={18} className="text-gray-600" />
+                                            <span>Orders</span>
+                                        </button>
+                                        <hr className="my-2 border-gray-200" />
+                                        <button
+                                            onClick={handleDisconnect}
+                                            className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition-colors flex items-center gap-3 text-red-600"
+                                        >
+                                            <LogOut size={18} />
+                                            <span>Disconnect</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 <button 
@@ -202,27 +391,49 @@ const Header = () => {
                    
                     {searchResults.length > 0 && (
                         <div className="max-h-80 overflow-y-auto">
-                            {searchResults.map((product) => (
+                            {searchResults.map((item, index) => (
                                 <div 
-                                    key={product.id}
+                                    key={item.id ? `${item.type}-${item.id}` : `item-${index}`}
                                     className="flex items-center gap-4 p-4 hover:bg-gray-50 cursor-pointer border-b border-gray-100"
-                                    onClick={() => handleSearchResultClick(product.id)}
+                                    onClick={() => handleSearchResultClick(item)}
                                 >
                                     <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                                        <img 
-                                            src={product.image} 
-                                            alt={product.title}
-                                            className="w-full h-full object-cover"
-                                        />
+                                        {item.image && (
+                                            <img 
+                                                src={item.image} 
+                                                alt={item.title || item.name}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        )}
                                     </div>
                                     <div className="flex-1">
-                                        <h3 className="font-medium text-black">{product.title}</h3>
-                                        <p className="text-sm text-gray-600">By {product.creator}</p>
-                                        <p className="text-sm text-gray-500">{product.category}</p>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-medium text-blue-600 px-2 py-0.5 bg-blue-50 rounded">
+                                                {item.type?.toUpperCase()}
+                                            </span>
+                                            <h3 className="font-medium text-black">{item.title || item.pieceName || item.name}</h3>
+                                        </div>
+                                        {item.creator && (
+                                            <p className="text-sm text-gray-600">By {item.creator}</p>
+                                        )}
+                                        {item.organization && (
+                                            <p className="text-sm text-gray-600">{item.organization}</p>
+                                        )}
+                                        {item.role && (
+                                            <p className="text-sm text-gray-600">{item.role}</p>
+                                        )}
+                                        {item.campaign && (
+                                            <p className="text-sm text-gray-500">Campaign: {item.campaign}</p>
+                                        )}
+                                        {(item.category || item.categoryType) && (
+                                            <p className="text-sm text-gray-500">{item.category || item.categoryType}</p>
+                                        )}
                                     </div>
-                                    <div className="text-right">
-                                        <p className="font-medium text-black">{product.price}</p>
-                                    </div>
+                                    {(item.price || item.amountRaised) && (
+                                        <div className="text-right">
+                                            <p className="font-medium text-black">{item.price || item.amountRaised}</p>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -230,7 +441,7 @@ const Header = () => {
                     
                     {searchQuery && searchResults.length === 0 && (
                         <div className="p-4 text-center text-gray-500">
-                            No products found for "{searchQuery}"
+                            No results found for "{searchQuery}"
                         </div>
                     )}
                 </div>
@@ -317,14 +528,68 @@ const Header = () => {
                             </li>
                         </ul>
                         <div className="pt-6">
-                            <Button 
-                                variant="primary" 
-                                size="md" 
-                                className="w-full justify-center"
-                                onClick={handleAccountMenuClick}
-                            >
-                                Account
-                            </Button>
+                            {!isConnected ? (
+                                <Button 
+                                    variant="primary" 
+                                    size="md" 
+                                    className="w-full justify-center"
+                                    onClick={handleConnect}
+                                >
+                                    Connect Wallet
+                                </Button>
+                            ) : (
+                                <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                                    <div className="flex items-center gap-3 pb-3 border-b border-gray-200">
+                                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                                            {address ? address.slice(2, 4).toUpperCase() : '0x'}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-gray-600">Connected</p>
+                                            <p className="text-xs text-gray-500 truncate">{address}</p>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Network</p>
+                                        <select
+                                            value={chainId}
+                                            onChange={(e) => handleSwitchNetwork(Number(e.target.value))}
+                                            className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        >
+                                            {networks.map((network) => (
+                                                <option key={network.id} value={network.id}>
+                                                    {network.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="flex gap-2 pt-3 border-t border-gray-200">
+                                        <button
+                                            onClick={() => {
+                                                handleCopyAddress()
+                                                setIsMobileMenuOpen(false)
+                                            }}
+                                            className="flex-1 px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+                                        >
+                                            Copy
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setIsMobileMenuOpen(false)
+                                                handleProfileClick()
+                                            }}
+                                            className="flex-1 px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+                                        >
+                                            Profile
+                                        </button>
+                                        <button
+                                            onClick={handleDisconnect}
+                                            className="flex-1 px-4 py-2 text-sm bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+                                        >
+                                            Disconnect
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </>

@@ -32,11 +32,11 @@ const Campaign = () => {
         { value: 'education', label: 'Education' },
         { value: 'climate-change', label: "Climate Change" }
     ]
-
+  
     useEffect(() => {
         setFilteredCampaigns(campaigns)
     }, [])
-
+ 
     const handleCategoryClick = (category: string) => {
         setActiveCategory(category)
         
