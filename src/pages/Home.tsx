@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { products, causes, creators } from '../data/databank';
 import { getAllGlobalDesigns, getAllCampaigns } from '../utils/firebaseStorage';
+import { syncCampaignsWithOnChain } from '../onchain/adapter';
 
 const Home = () => {
     const navigate = useNavigate();
@@ -91,21 +92,19 @@ const Home = () => {
            
             try {
                 const firebaseCampaigns = await getAllCampaigns();
+                const syncedCampaigns = await syncCampaignsWithOnChain(firebaseCampaigns);
                 
-                
-       
-                const sortedCampaigns = firebaseCampaigns
-            .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+                const sortedCampaigns = syncedCampaigns
+                    .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
         
-              
-        const userCampaignsOnly = sortedCampaigns.slice(0, 5);
-        const mockCampaignsNeeded = 5 - userCampaignsOnly.length;
-        const recentCampaigns = [
-            ...userCampaignsOnly,
-            ...causes.slice(0, mockCampaignsNeeded)
-        ];
+                const userCampaignsOnly = sortedCampaigns.slice(0, 5);
+                const mockCampaignsNeeded = 5 - userCampaignsOnly.length;
+                const recentCampaigns = [
+                    ...userCampaignsOnly,
+                    ...causes.slice(0, mockCampaignsNeeded)
+                ];
         
-        setPopularCampaigns(recentCampaigns);
+                setPopularCampaigns(recentCampaigns);
             } catch (error) {
                 console.error('Error loading campaigns:', error);
                 setPopularCampaigns(causes.slice(0, 5));
@@ -395,14 +394,14 @@ src="/shirtfront.png"
             
             return (
               <CampaignCard
-                key={campaign.id}
+                key={campaign.onchainId || campaign.id}
                 image={imageUrl}
                 title={campaign.title}
-                amountRaised={`₦${amountRaised.toLocaleString()}`}
-                goal={`₦${goal.toLocaleString()}`}
+                amountRaised={`${amountRaised.toLocaleString()} HBAR`}
+                goal={`${goal.toLocaleString()} HBAR`}
                 percentage={percentage}
                 alt={campaign.title}
-                onClick={() => navigate(`/campaign/${campaign.id}`)}
+                onClick={() => navigate(`/campaign/${campaign.onchainId || campaign.id}`)}
               />
             )
           })}

@@ -1,5 +1,5 @@
 import { X, Camera } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Button from './Button'
 import { useAccount } from 'wagmi'
 import { saveUserProfileWithImages } from '../utils/firebaseStorage'
@@ -7,13 +7,30 @@ import { saveUserProfileWithImages } from '../utils/firebaseStorage'
 interface ProfileSetupModalProps {
     isOpen: boolean
     onClose: () => void
+    existingProfile?: {
+        name?: string
+        bio?: string
+        profileImage?: string | null
+        bannerImage?: string | null
+    }
 }
 
-const ProfileSetupModal = ({ isOpen, onClose }: ProfileSetupModalProps) => {
+const ProfileSetupModal = ({ isOpen, onClose, existingProfile }: ProfileSetupModalProps) => {
     const [formData, setFormData] = useState({ name: '', bio: '' })
     const [profileImage, setProfileImage] = useState<string | null>(null)
     const [bannerImage, setBannerImage] = useState<string | null>(null)
     const { address, isConnected } = useAccount()
+
+    useEffect(() => {
+        if (existingProfile) {
+            setFormData({
+                name: existingProfile.name || '',
+                bio: existingProfile.bio || ''
+            })
+            setProfileImage(existingProfile.profileImage || null)
+            setBannerImage(existingProfile.bannerImage || null)
+        }
+    }, [existingProfile, isOpen])
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target
@@ -94,18 +111,19 @@ const ProfileSetupModal = ({ isOpen, onClose }: ProfileSetupModalProps) => {
             profileImage
         }
         
-        // Save to localStorage
         localStorage.setItem('userProfile', JSON.stringify(profileData))
         localStorage.setItem('profileSetupCompleted', 'true')
         
-        // Also save to Firebase if connected
+        if (address) {
+            sessionStorage.setItem(`profileSetupShown_${address}`, 'true')
+        }
+        
         if (isConnected && address) {
             try {
                 await saveUserProfileWithImages(address, profileData)
                 console.log('Profile saved to Firebase')
             } catch (error) {
                 console.error('Error saving profile to Firebase:', error)
-                // Continue even if Firebase fails
             }
         }
         
@@ -114,6 +132,9 @@ const ProfileSetupModal = ({ isOpen, onClose }: ProfileSetupModalProps) => {
 
     const handleSkip = () => {
         localStorage.setItem('profileSetupCompleted', 'true')
+        if (address) {
+            sessionStorage.setItem(`profileSetupShown_${address}`, 'true')
+        }
         onClose()
     }
 

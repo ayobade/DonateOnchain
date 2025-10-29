@@ -1,14 +1,16 @@
-import { Search, ShoppingBag, ChevronDown, Menu, X, ChevronRight, User, Package, LogOut } from 'lucide-react'
+import { Search, ShoppingBag, ChevronDown, Menu, X, ChevronRight, User, Package, LogOut, Copy } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Button from './Button'
 import DonateLogo from '../assets/DonateLogo.png'
 import { useCart } from '../context/CartContext'
+import { addresses, abis } from '../onchain/contracts'
+import { read as readOnchain } from '../onchain/client'
 import { products, campaigns, causes, creators } from '../data/databank'
 import { reownAppKit } from '../config/reownConfig'
 import { useAccount, useDisconnect, useChainId, useSwitchChain } from 'wagmi'
-
 import { hederaTestnet } from '../config/reownConfig'
+import { getUserRoles } from '../onchain/adapter'
 
 const Header = () => {
     const navigate = useNavigate()
@@ -22,11 +24,29 @@ const Header = () => {
     const [activeNav, setActiveNav] = useState<string>('')
     const [isSearchOpen, setIsSearchOpen] = useState(false)
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+    const [showAdmin, setShowAdmin] = useState(false)
     const [isMobileShopOpen, setIsMobileShopOpen] = useState(false)
     const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
     const [isWalletMenuOpen, setIsWalletMenuOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
     const [searchResults, setSearchResults] = useState<any[]>([])
+    const [isNgo, setIsNgo] = useState(false)
+
+    useEffect(() => {
+        const checkRoles = async () => {
+            if (address && isConnected) {
+                try {
+                    const roles = await getUserRoles(address as `0x${string}`);
+                    setIsNgo(roles.isNgo);
+                } catch (error) {
+                    console.error('Error checking roles in header:', error);
+                }
+            } else {
+                setIsNgo(false);
+            }
+        };
+        checkRoles();
+    }, [address, isConnected]);
 
     const shortenAddress = (address: string) => {
         if (!address) return ''
@@ -199,6 +219,21 @@ const Header = () => {
     }, [])
 
     useEffect(() => {
+        const loadRole = async () => {
+            try {
+                if (!address) { setShowAdmin(false); return }
+                const owner = await readOnchain<string>({ address: addresses.ADMIN_REGISTRY as `0x${string}`, abi: abis.AdminRegistry as any, functionName: 'owner' })
+                if (owner && address && owner.toLowerCase() === address.toLowerCase()) { setShowAdmin(true); return }
+                const isAdmin = await readOnchain<boolean>({ address: addresses.ADMIN_REGISTRY as `0x${string}`, abi: abis.AdminRegistry as any, functionName: 'isAdmin', args: [address] })
+                setShowAdmin(Boolean(isAdmin))
+            } catch {
+                setShowAdmin(false)
+            }
+        }
+        loadRole()
+    }, [address])
+
+    useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (isWalletMenuOpen && !(event.target as HTMLElement).closest('.wallet-menu')) {
                 setIsWalletMenuOpen(false)
@@ -242,12 +277,22 @@ const Header = () => {
                     >
                         Campaigns
                     </button>
+                    {!isNgo && (
                     <button 
                         className={`inline-flex items-center gap-[6px] text-base text-black bg-transparent pb-1 cursor-pointer hover:opacity-80 border-b-2 transition-colors ${activeNav==='Customize' ? 'border-black' : 'border-transparent hover:border-black'}`}
                         onClick={() => { setActiveNav('Customize'); setIsShopOpen(false); navigate('/become-an-ngo'); }}
                     >
                         Become an NGO
                     </button>
+                    )}
+                    {showAdmin && (
+                        <button 
+                            className={`inline-flex items-center gap-[6px] text-base text-black bg-transparent pb-1 cursor-pointer hover:opacity-80 border-b-2 transition-colors ${activeNav==='Admin' ? 'border-black' : 'border-transparent hover:border-black'}`}
+                            onClick={() => { setActiveNav('Admin'); setIsShopOpen(false); navigate('/admin'); }}
+                        >
+                            Admin
+                        </button>
+                    )}
                 </nav>
             </div>
 
@@ -328,7 +373,7 @@ const Header = () => {
                                             onClick={handleCopyAddress}
                                             className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition-colors flex items-center gap-3"
                                         >
-                                            <User size={18} className="text-gray-600" />
+                                            <Copy size={18} className="text-gray-600" />
                                             <span>Copy Address</span>
                                         </button>
                                         <button
@@ -520,11 +565,13 @@ const Header = () => {
                                     
                                 </button>
                             </li>
+                            {!isNgo && (
                             <li>
                                 <button className="w-full flex items-center justify-between py-5" onClick={() => { setIsMobileMenuOpen(false); setActiveNav('Customize'); navigate('/become-an-ngo'); }}>
                                     <span>Become an NGO</span>
                                 </button>
                             </li>
+                            )}
                         </ul>
                         <div className="pt-6">
                             {!isConnected ? (

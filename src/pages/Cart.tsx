@@ -7,11 +7,13 @@ import Button from "../component/Button";
 import { products } from "../data/databank";
 import { useCart } from "../context/CartContext";
 import { getAllGlobalDesigns } from '../utils/firebaseStorage';
+import { getDesignPrice } from '../onchain/adapter';
 
 const Cart = () => {
   const navigate = useNavigate();
   const { cartItems, updateQuantity, removeItem } = useCart();
   const [customDesigns, setCustomDesigns] = useState<any[]>([]);
+  const [onchainPrices, setOnchainPrices] = useState<Record<number, number>>({});
 
  
   useEffect(() => {
@@ -45,6 +47,22 @@ const Cart = () => {
     loadDesigns();
   }, []);
 
+  useEffect(() => {
+    const loadOnchainPrices = async () => {
+      const ids = Array.from(new Set(cartItems.map(ci => ci.id)));
+      const next: Record<number, number> = {};
+      for (const id of ids) {
+        try {
+          const p = await getDesignPrice(BigInt(id));
+          const hbar = Number(p) / 1e18;
+          if (hbar > 0) next[id] = hbar;
+        } catch {}
+      }
+      setOnchainPrices(next);
+    };
+    if (cartItems.length) loadOnchainPrices();
+  }, [cartItems]);
+
   const getProductById = (id: number) => {
 
     const regularProduct = products.find((product) => product.id === id);
@@ -59,12 +77,14 @@ const Cart = () => {
     return cartItems.reduce((total, item) => {
       const product = getProductById(item.id);
       if (product) {
+        const overrideHBAR = onchainPrices[item.id];
+        if (overrideHBAR && !isNaN(overrideHBAR)) {
+          return total + overrideHBAR * item.quantity;
+        }
         let price;
         if (product.pieceName) {
-      
           price = parseInt(product.price.toString().replace(/[^\d]/g, ""));
         } else if (product.price) {
-       
           price = parseInt(product.price.replace(/[^\d]/g, ""));
         } else {
           price = 0;
@@ -75,11 +95,11 @@ const Cart = () => {
     }, 0);
   };
 
-  const shippingCost = 4000;
+  const shippingCost = 0;
   const subtotal = calculateSubtotal();
 
   const formatPrice = (amount: number) => {
-    return `₦${amount.toLocaleString()}`;
+    return Object.keys(onchainPrices).length ? `${amount.toLocaleString()} HBAR` : `₦${amount.toLocaleString()}`;
   };
 
     return (

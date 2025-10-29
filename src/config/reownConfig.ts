@@ -1,7 +1,7 @@
 import { createAppKit } from '@reown/appkit'
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
 import { defineChain, http } from 'viem'
-import { createConfig } from 'wagmi'
+import { createConfig, injected } from 'wagmi'
 
 
 export const hederaTestnet = defineChain({
@@ -52,6 +52,10 @@ export const reownAppKit = createAppKit({
     socials: [],
     emailShowWallets: true,
   },
+  featuredWalletIds: [
+    'c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96',
+    '4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0',
+  ],
 })
 
 
@@ -59,6 +63,10 @@ export const wagmiConfig = createConfig({
   chains: [hederaTestnet],
   transports: {
     [hederaTestnet.id]: http('https://testnet.hashio.io/api'),
-  
   },
+  connectors: [
+    injected({
+      shimDisconnect: true,
+    }),
+  ],
 })

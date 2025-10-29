@@ -63,12 +63,10 @@ const CreateCampaignModal = ({ isOpen, onClose, onSubmit }: CreateCampaignModalP
             alert('Please fill in all fields');
             return;
         }
-        // Pass the File object along with form data
         onSubmit({
             ...formData,
             coverImageFile: formData.coverImage
         });
-        handleClose();
     };
 
     const handleClose = () => {
@@ -204,7 +202,7 @@ const CreateCampaignModal = ({ isOpen, onClose, onSubmit }: CreateCampaignModalP
                         onClick={handleSubmit}
                         className="w-full"
                     >
-                        Upload
+                        Create Campaign
                     </Button>
                 </div>
             </div>

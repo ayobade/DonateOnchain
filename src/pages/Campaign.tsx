@@ -10,6 +10,7 @@ import ShopImg from '../assets/ShopImg.png'
 import { ChevronDown } from 'lucide-react'
 import { campaigns as defaultCampaigns } from '../data/databank'
 import { getAllCampaigns } from '../utils/firebaseStorage'
+import { syncCampaignsWithOnChain, listAllCampaignsFromChain } from '../onchain/adapter'
 
 const Campaign = () => {
     const navigate = useNavigate()
@@ -39,35 +40,28 @@ const Campaign = () => {
     useEffect(() => {
         const loadCampaigns = async () => {
             try {
-             
-                const firebaseCampaigns = await getAllCampaigns()
-                console.log('Firebase campaigns loaded:', firebaseCampaigns.length)
-                
-            
-                const combined = [...firebaseCampaigns, ...defaultCampaigns]
-                
-            
-                const unique = Array.from(
-                    new Map(combined.map(campaign => [campaign.id, campaign])).values()
-                )
-                
-                const sorted = unique.sort((a, b) => {
-                    const aTime = new Date(a.createdAt || 0).getTime()
-                    const bTime = new Date(b.createdAt || 0).getTime()
-                    return bTime - aTime
+                const onchain = await listAllCampaignsFromChain()
+                const withPercent = onchain.map(c => {
+                    const goal = Number(c.goal) || 0
+                    const raised = Number(c.amountRaised) || 0
+                    const percentage = goal > 0 ? (raised / goal) * 100 : 0
+                    return { ...c, goal, amountRaised: raised, percentage }
                 })
-                
-                setAllCampaigns(sorted)
-                setFilteredCampaigns(sorted)
+                setAllCampaigns(withPercent)
+                setFilteredCampaigns(withPercent)
                 setIsLoading(false)
             } catch (error) {
-                console.error('Error loading campaigns:', error)
-                setAllCampaigns(defaultCampaigns)
-                setFilteredCampaigns(defaultCampaigns)
+                console.error('Error loading on-chain campaigns:', error)
+                // Fallback to previous behavior if chain fetch fails
+                try {
+                    const firebaseCampaigns = await getAllCampaigns()
+                    const syncedCampaigns = await syncCampaignsWithOnChain(firebaseCampaigns)
+                    setAllCampaigns(syncedCampaigns)
+                    setFilteredCampaigns(syncedCampaigns)
+                } catch {}
                 setIsLoading(false)
             }
         }
-        
         loadCampaigns()
     }, [])
  
@@ -191,14 +185,14 @@ const Campaign = () => {
                              
                              return (
                                  <CampaignCard
-                                     key={campaign.id}
+                                     key={campaign.onchainId || campaign.id}
                                      image={imageUrl}
                                      title={campaignTitle}
-                                     amountRaised={amountRaised}
-                                     goal={goal}
+                                     amountRaised={`${amountRaised.toLocaleString()} HBAR`}
+                                     goal={`${goal.toLocaleString()} HBAR`}
                                      percentage={percentage}
                                      alt={campaignTitle}
-                                     onClick={() => navigate(`/campaign/${campaign.id}`)}
+                                     onClick={() => navigate(`/campaign/${campaign.onchainId || campaign.id}`)}
                                  />
                              )
                          })}

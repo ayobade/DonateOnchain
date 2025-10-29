@@ -10,6 +10,7 @@ import ShopImg from '../assets/ShopImg.png'
 import { Filter, ChevronDown } from 'lucide-react'
 import { products } from '../data/databank'
 import { getAllGlobalDesigns } from '../utils/firebaseStorage'
+import { listDesigns } from '../onchain/adapter'
 
 const Shop = () => {
     const navigate = useNavigate()
@@ -62,8 +63,19 @@ const Shop = () => {
     useEffect(() => {
         const loadDesigns = async () => {
             try {
-               
                 const firebaseDesigns = await getAllGlobalDesigns();
+                let chainDesigns: any[] = []
+                try {
+                    const onchain = await listDesigns()
+                    chainDesigns = onchain.map(d => ({
+                        id: Number(d.id),
+                        pieceName: d.title,
+                        frontDesign: {},
+                        price: `${Number(d.priceHBAR) / 1e18} HBAR`,
+                        type: 'shirt',
+                        createdAt: Date.now(),
+                    }))
+                } catch {}
                 
               
                 const validFirebaseDesigns = firebaseDesigns.filter((design: any) => design && design.id && design.pieceName);
@@ -77,7 +89,7 @@ const Shop = () => {
                 const validNgoDesigns = ngoDesigns.filter((design: any) => design && design.id && design.pieceName);
                 
                
-                const allDesigns = [...validFirebaseDesigns, ...validUserDesigns, ...validNgoDesigns];
+                const allDesigns = [...chainDesigns, ...validFirebaseDesigns, ...validUserDesigns, ...validNgoDesigns];
                 const uniqueDesigns = Array.from(
                     new Map(allDesigns.map(design => [design.id, design])).values()
                 );

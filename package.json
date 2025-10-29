@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build --mode production",
     "build:netlify": "npm ci --legacy-peer-deps && npm run build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "relayer": "node server/index.js",
+    "relayer:dev": "node --watch server/index.js"
   },
   "dependencies": {
     "@hashgraph/hedera-wallet-connect": "^2.0.3",
@@ -18,6 +20,8 @@
     "@supabase/supabase-js": "^2.76.1",
     "@tanstack/react-query": "^5.90.5",
     "firebase": "^12.4.0",
+    "hashconnect": "^3.0.14",
+    "ipfs-http-client": "^60.0.1",
     "lucide-react": "^0.546.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",

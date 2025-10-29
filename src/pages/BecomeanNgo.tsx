@@ -1,15 +1,21 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAccount } from 'wagmi'
-import { reownAppKit } from '../config/reownConfig'
+import { useAccount, useChainId, useWatchContractEvent } from 'wagmi'
+import { reownAppKit, hederaTestnet } from '../config/reownConfig'
 import Header from '../component/Header'
 import Footer from '../component/Footer'
 import { ChevronDown, Upload, CheckCircle, Clock } from 'lucide-react'
-import { saveNgoApplication, getNgoApplicationByWallet, uploadFileToFirebase } from '../utils/firebaseStorage'
+import { saveNgoApplication, getNgoApplicationByWallet, deleteNgoApplication } from '../utils/firebaseStorage'
+import { ngoRegisterPending } from '../onchain/adapter'
+import { uploadMetadataToIPFS, getIPFSHash } from '../utils/ipfs'
+import { publicClient, read } from '../onchain/client'
+import { addresses, abis } from '../onchain/contracts'
 
 const BecomeanNgo = () => {
     const navigate = useNavigate()
     const { address, isConnected } = useAccount()
+    const chainId = useChainId()
+    const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
     const [hasAlreadyApplied, setHasAlreadyApplied] = useState(false)
     const [existingNgoData, setExistingNgoData] = useState<any>(null)
     
@@ -53,53 +59,89 @@ const BecomeanNgo = () => {
         
         checkExistingApplication()
     }, [address, isConnected])
+
+    useEffect(() => {
+        if (toast) {
+            const timer = setTimeout(() => {
+                setToast(null)
+            }, 4000)
+            return () => clearTimeout(timer)
+        }
+    }, [toast])
+
+    useWatchContractEvent({
+        address: addresses.NGO_REGISTRY as any,
+        abi: abis.NGORegistry as any,
+        eventName: 'NGORegistrationRequested',
+        onLogs: () => setToast({ msg: 'Registration request emitted.', type: 'success' }),
+    })
     
   
     const [currentSection, setCurrentSection] = useState(1)
     const [ngoName, setNgoName] = useState('')
-    const [missionStatement, setMissionStatement] = useState('')
-    const [categories, setCategories] = useState<string[]>([])
+    const [email, setEmail] = useState('')
+    const [phoneNumber, setPhoneNumber] = useState('')
+    const [registrationNumber, setRegistrationNumber] = useState('')
+    const [yearFounded, setYearFounded] = useState('')
+    const [website, setWebsite] = useState('')
+    const [organizationType, setOrganizationType] = useState('')
+    const [focusAreas, setFocusAreas] = useState<string[]>([])
+    const [addressInput, setAddressInput] = useState('')
     const [country, setCountry] = useState('')
-    const [officeAddress, setOfficeAddress] = useState('')
-    const [contactEmail, setContactEmail] = useState('')
-    const [websiteLink, setWebsiteLink] = useState('')
+    const [stateRegion, setStateRegion] = useState('')
+    const [logo, setLogo] = useState<File | null>(null)
+    const [annualReport, setAnnualReport] = useState<File | null>(null)
     const [registrationCert, setRegistrationCert] = useState<File | null>(null)
-    const [proofOfAddress, setProofOfAddress] = useState<File | null>(null)
-    const [organizerId, setOrganizerId] = useState<File | null>(null)
     const [accuracyConfirmed, setAccuracyConfirmed] = useState(false)
     const [policyAccepted, setPolicyAccepted] = useState(false)
     const [showSuccessModal, setShowSuccessModal] = useState(false)
 
-    const categoryOptions = [
+    const organizationTypeOptions = [
+        'Charity',
+        'Nonprofit',
+        'Foundation',
+        'Social Enterprise',
+        'Community Organization',
+        'Religious Organization',
+        'Other'
+    ]
+
+    const focusAreaOptions = [
         'Education',
         'Health',
         'Environment',
         'Poverty Alleviation',
         'Human Rights',
         'Animal Welfare',
-        'Others'
+        'Disaster Relief',
+        'Youth Development',
+        'Women Empowerment',
+        'Mental Health',
+        'Clean Water',
+        'Food Security',
+        'Other'
     ]
 
 
-    const handleCategoryToggle = (category: string) => {
-        setCategories(prev => 
-            prev.includes(category) 
-                ? prev.filter(c => c !== category)
-                : [...prev, category]
+    const handleFocusAreaToggle = (area: string) => {
+        setFocusAreas(prev => 
+            prev.includes(area) 
+                ? prev.filter(c => c !== area)
+                : [...prev, area]
         )
     }
 
-    const handleFileUpload = (file: File, type: 'registration' | 'address' | 'id') => {
-        if (type === 'registration') {
+    const handleFileUpload = (file: File, type: 'logo' | 'annualReport' | 'registration') => {
+        if (type === 'logo') {
+            setLogo(file)
+        } else if (type === 'annualReport') {
+            setAnnualReport(file)
+        } else if (type === 'registration') {
             setRegistrationCert(file)
-        } else if (type === 'address') {
-            setProofOfAddress(file)
-        } else if (type === 'id') {
-            setOrganizerId(file)
         }
     }
 
-    const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>, type: 'registration' | 'address' | 'id') => {
+    const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'annualReport' | 'registration') => {
         const file = event.target.files?.[0]
         if (file) {
             handleFileUpload(file, type)
@@ -112,15 +154,19 @@ const BecomeanNgo = () => {
 
     const isSection1Valid = () => {
         return ngoName.trim() !== '' && 
-               missionStatement.trim() !== '' && 
-               categories.length > 0 &&
+               email.trim() !== '' &&
+               phoneNumber.trim() !== '' &&
+               registrationNumber.trim() !== '' &&
+               yearFounded.trim() !== '' &&
+               organizationType !== '' &&
+               focusAreas.length > 0 &&
+               addressInput.trim() !== '' &&
                country !== '' &&
-               officeAddress.trim() !== '' &&
-               contactEmail.trim() !== ''
+               stateRegion.trim() !== ''
     }
 
     const isSection2Valid = () => {
-        return registrationCert !== null && proofOfAddress !== null
+        return logo !== null && registrationCert !== null
     }
 
     const isSection3Valid = () => {
@@ -135,53 +181,129 @@ const BecomeanNgo = () => {
         if (!address) return
         
         try {
-            let registrationCertUrl = null
-            let proofOfAddressUrl = null
-            let organizerIdUrl = null
+            if (chainId && chainId !== hederaTestnet.id) {
+                setToast({ msg: 'Switch to Hedera Testnet and retry.', type: 'error' })
+                return
+            }
 
+            const pc = publicClient()
+            const bal = await pc.getBalance({ address })
+            if (bal === 0n) {
+                setToast({ msg: 'Fund your Hedera Testnet account, then retry.', type: 'error' })
+                return
+            }
+
+            let logoIpfsHash = null
+            let annualReportIpfsHash = null
+            let registrationCertIpfsHash = null
+
+            if (logo) {
+                logoIpfsHash = await getIPFSHash(logo)
+            }
+            if (annualReport) {
+                annualReportIpfsHash = await getIPFSHash(annualReport)
+            }
             if (registrationCert) {
-                registrationCertUrl = await uploadFileToFirebase(address, registrationCert, 'registrationCert')
-            }
-            if (proofOfAddress) {
-                proofOfAddressUrl = await uploadFileToFirebase(address, proofOfAddress, 'proofOfAddress')
-            }
-            if (organizerId) {
-                organizerIdUrl = await uploadFileToFirebase(address, organizerId, 'organizerId')
+                registrationCertIpfsHash = await getIPFSHash(registrationCert)
             }
 
-            const ngoData = {
+            const metadata = {
+                name: ngoName,
+                email,
+                phoneNumber,
+                registrationNumber,
+                yearFounded,
+                website,
+                organizationType,
+                focusAreas,
+                address: addressInput,
+                country,
+                stateRegion,
+                walletAddress: address,
+                logoHash: logoIpfsHash,
+                annualReportHash: annualReportIpfsHash,
+                registrationCertHash: registrationCertIpfsHash
+            }
+
+            const metadataHash = await uploadMetadataToIPFS(metadata)
+
+            if (!metadataHash) {
+                setToast({ msg: 'Failed to upload metadata to IPFS.', type: 'error' })
+                return
+            }
+
+            const ngoData: any = {
                 id: Date.now(),
                 ngoName,
-                missionStatement,
-                categories,
+                email,
+                phoneNumber,
+                registrationNumber,
+                yearFounded,
+                website,
+                organizationType,
+                focusAreas,
+                address: addressInput,
                 country,
-                officeAddress,
-                contactEmail,
-                websiteLink,
+                stateRegion,
                 walletAddress: address,
                 connectedWalletAddress: address,
-                registrationCertUrl,
-                proofOfAddressUrl,
-                organizerIdUrl,
+                logoHash: logoIpfsHash,
+                annualReportHash: annualReportIpfsHash,
+                registrationCertHash: registrationCertIpfsHash,
+                metadataHash,
                 verified: false,
                 createdAt: new Date().toISOString()
             }
 
-            const existingNgos = JSON.parse(localStorage.getItem('ngos') || '[]')
-            existingNgos.push(ngoData)
-            localStorage.setItem('ngos', JSON.stringify(existingNgos))
-
             await saveNgoApplication(ngoData)
+            
+            try {
+                let needsOnChainRegistration = true
+                try {
+                    const ngoOnchain = await read<any>({ address: addresses.NGO_REGISTRY as any, abi: abis.NGORegistry as any, functionName: 'getNGO', args: [address] })
+                    if (ngoOnchain && ngoOnchain.wallet) {
+                        needsOnChainRegistration = false
+                    }
+                } catch (checkError) {
+                    
+                }
+
+                if (needsOnChainRegistration) {
+                    const profileImageHash = logoIpfsHash || ''
+                    const description = `${organizationType} focused on ${focusAreas.join(', ')}`
+                    const receipt = await ngoRegisterPending({ name: ngoName, description, profileImageHash, metadataHash })
+                    if (receipt?.transactionHash) {
+                        const updatedNgoData = { ...ngoData, transactionHash: receipt.transactionHash }
+                        await saveNgoApplication(updatedNgoData)
+                    }
+                    setToast({ msg: 'NGO application submitted on-chain with IPFS metadata.', type: 'success' })
+                } else {
+                    setToast({ msg: 'NGO application saved to database. Your previous application is being reviewed.', type: 'success' })
+                }
+            } catch (e: any) {
+                const msg = String(e?.message || e)
+                if (msg.includes('NGOAlreadyRegistered')) {
+                    setToast({ msg: 'This wallet address is already registered as an NGO on-chain. Application saved to database.', type: 'success' })
+                } else if (msg.includes('Sender account not found')) {
+                    setToast({ msg: 'Sender account not found. Fund Hedera Testnet account and retry.', type: 'error' })
+                } else if (msg.includes('EmptyMetadata')) {
+                    setToast({ msg: 'Metadata is required for registration.', type: 'error' })
+                } else {
+                    setToast({ msg: 'On-chain NGO registration failed. Application saved to database.', type: 'error' })
+                }
+                console.error('On-chain NGO registration failed', e)
+            }
             console.log('NGO application saved to Firebase')
         } catch (error) {
             console.error('Error saving NGO application to Firebase:', error)
+            setToast({ msg: 'Failed to save NGO application.', type: 'error' })
         }
 
         setShowSuccessModal(true)
     }
 
     const nextSection = () => {
-        if (currentSection < 3) {
+        if (currentSection < 4) {
             setCurrentSection(currentSection + 1)
         }
     }
@@ -205,6 +327,14 @@ const BecomeanNgo = () => {
     return (
         <div>
             <Header />
+            {toast && (
+                <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded shadow ${toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
+                    <div className="flex items-center gap-3">
+                        <span className="text-sm">{toast.msg}</span>
+                        <button className="text-white/80" onClick={() => setToast(null)}>×</button>
+                    </div>
+                </div>
+            )}
             
           
             {!isConnected && (
@@ -238,42 +368,168 @@ const BecomeanNgo = () => {
                 <section className="px-4 md:px-7 py-20 bg-gray-50 min-h-[60vh] flex items-center">
                     <div className="max-w-2xl mx-auto w-full">
                         <div className="bg-white rounded-2xl p-8 md:p-12 text-center shadow-sm">
-                            <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                                <Clock className="w-10 h-10 text-yellow-600" />
-                            </div>
-                            <h1 className="text-3xl md:text-4xl font-bold text-black mb-4">
-                                Application Submitted Successfully!
-                            </h1>
-                            <p className="text-gray-600 mb-6 text-lg">
-                                You have already submitted your application to become an NGO.
-                            </p>
-                            <div className="bg-gray-50 rounded-lg p-6 mb-6">
-                                <p className="text-sm text-gray-500 mb-4">
-                                    Status: <span className="font-semibold text-yellow-600">Awaiting Verification</span>
-                                </p>
-                                {existingNgoData && (
-                                    <div className="text-left space-y-2">
-                                        <p className="text-sm">
-                                            <span className="font-medium text-black">Organization:</span> {existingNgoData.ngoName}
-                                        </p>
-                                        <p className="text-sm">
-                                            <span className="font-medium text-black">Submitted:</span> {new Date(existingNgoData.createdAt).toLocaleDateString()}
-                                        </p>
-                                        <p className="text-sm">
-                                            <span className="font-medium text-black">Email:</span> {existingNgoData.contactEmail}
-                                        </p>
+                            {existingNgoData?.status === 'approved' ? (
+                                <>
+                                    <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                                        <CheckCircle className="w-10 h-10 text-green-600" />
                                     </div>
-                                )}
-                            </div>
-                            <p className="text-gray-600 mb-8">
-                                Our team is reviewing your application. You'll receive a notification once your NGO profile is approved — after which you can start creating fundraising campaigns and accepting crypto donations.
-                            </p>
-                            <button
-                                onClick={() => navigate('/')}
-                                className="bg-black text-white rounded-full px-8 py-3 text-sm font-semibold hover:bg-gray-800 transition-colors"
-                            >
-                                Back to Home
-                            </button>
+                                    <h1 className="text-3xl md:text-4xl font-bold text-black mb-4">
+                                        Your NGO Profile Has Been Created!
+                                    </h1>
+                                    <p className="text-gray-600 mb-4 text-lg">
+                                        Congratulations! Your NGO profile has been approved. You can now start creating fundraising campaigns and accepting crypto donations.
+                                    </p>
+                                    
+                                    <div className="flex items-center justify-center mb-6">
+                                        <span className="px-4 py-2 bg-blue-100 text-blue-700 rounded-full text-sm font-semibold inline-flex items-center gap-2">
+                                            🏢 NGO
+                                        </span>
+                                    </div>
+
+                                    <div className="bg-gray-50 rounded-lg p-6 mb-6">
+                                        <p className="text-sm text-gray-500 mb-4">
+                                            Status: <span className="font-semibold text-green-600">Approved</span>
+                                        </p>
+                                        {existingNgoData && (
+                                            <div className="text-left space-y-2">
+                                                <p className="text-sm">
+                                                    <span className="font-medium text-black">Organization:</span> {existingNgoData.ngoName}
+                                                </p>
+                                                <p className="text-sm">
+                                                    <span className="font-medium text-black">Approved:</span> {existingNgoData.statusUpdatedAt ? new Date(existingNgoData.statusUpdatedAt).toLocaleDateString() : '—'}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center justify-center gap-3">
+                                        <button
+                                            onClick={() => navigate('/user-profile')}
+                                            className="bg-white text-black border border-gray-300 rounded-full px-8 py-3 text-sm font-semibold hover:bg-gray-50 transition-colors"
+                                        >
+                                            Go to Profile
+                                        </button>
+                                        <button
+                                            onClick={() => navigate('/user-profile')}
+                                            className="bg-black text-white rounded-full px-8 py-3 text-sm font-semibold hover:bg-gray-800 transition-colors"
+                                        >
+                                            Create Campaign
+                                        </button>
+                                    </div>
+                                </>
+                            ) : existingNgoData?.status === 'rejected' ? (
+                                <>
+                                    <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                                        <svg className="w-10 h-10 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </div>
+                                    <h1 className="text-3xl md:text-4xl font-bold text-black mb-4">
+                                        Your NGO Profile Has Been Rejected
+                                    </h1>
+                                    <p className="text-gray-600 mb-6 text-lg">
+                                        We regret to inform you that your NGO application has been rejected. Please review the reason below.
+                                    </p>
+                                    {existingNgoData?.rejectionReason && (
+                                        <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-6 text-left">
+                                            <p className="text-sm font-medium text-red-800 mb-2">Reason for Rejection:</p>
+                                            <p className="text-sm text-red-700">{existingNgoData.rejectionReason}</p>
+                                        </div>
+                                    )}
+                                    <div className="bg-gray-50 rounded-lg p-6 mb-6">
+                                        {existingNgoData && (
+                                            <div className="text-left space-y-2">
+                                                <p className="text-sm">
+                                                    <span className="font-medium text-black">Organization:</span> {existingNgoData.ngoName}
+                                                </p>
+                                                <p className="text-sm">
+                                                    <span className="font-medium text-black">Rejected:</span> {existingNgoData.statusUpdatedAt ? new Date(existingNgoData.statusUpdatedAt).toLocaleDateString() : '—'}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center justify-center gap-3">
+                                        <button
+                                            onClick={() => {
+                                                setHasAlreadyApplied(false)
+                                                setExistingNgoData(null)
+                                                if (address) {
+                                                    deleteNgoApplication(address).catch(() => {})
+                                                }
+                                            }}
+                                            className="bg-black text-white rounded-full px-8 py-3 text-sm font-semibold hover:bg-gray-800 transition-colors"
+                                        >
+                                            Apply Again
+                                        </button>
+                                        <button
+                                            onClick={() => navigate('/')}
+                                            className="bg-white text-black border border-gray-300 rounded-full px-8 py-3 text-sm font-semibold hover:bg-gray-50 transition-colors"
+                                        >
+                                            Back to Home
+                                        </button>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                                        <Clock className="w-10 h-10 text-yellow-600" />
+                                    </div>
+                                    <h1 className="text-3xl md:text-4xl font-bold text-black mb-4">
+                                        Application Submitted Successfully!
+                                    </h1>
+                                    <p className="text-gray-600 mb-6 text-lg">
+                                        You have already submitted your application to become an NGO.
+                                    </p>
+                                    <div className="bg-gray-50 rounded-lg p-6 mb-6">
+                                        <p className="text-sm text-gray-500 mb-4">
+                                            Status: <span className="font-semibold text-yellow-600">Awaiting Verification</span>
+                                        </p>
+                                        {existingNgoData && (
+                                            <div className="text-left space-y-2">
+                                                <p className="text-sm">
+                                                    <span className="font-medium text-black">Organization:</span> {existingNgoData.ngoName}
+                                                </p>
+                                                <p className="text-sm">
+                                                    <span className="font-medium text-black">Submitted:</span> {new Date(existingNgoData.createdAt).toLocaleDateString()}
+                                                </p>
+                                                <p className="text-sm">
+                                                    <span className="font-medium text-black">Email:</span> {existingNgoData.email || existingNgoData.contactEmail}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <p className="text-gray-600 mb-8">
+                                        Our team is reviewing your application. You'll receive a notification once your NGO profile is approved — after which you can start creating fundraising campaigns and accepting crypto donations.
+                                    </p>
+                                    <div className="flex items-center justify-center gap-3">
+                                        <button
+                                            onClick={() => navigate('/')}
+                                            className="bg-black text-white rounded-full px-8 py-3 text-sm font-semibold hover:bg-gray-800 transition-colors"
+                                        >
+                                            Back to Home
+                                        </button>
+                                        <button
+                                            onClick={async () => {
+                                                if (!address) return
+                                                const confirmed = window.confirm('Withdraw your NGO application? This will delete your submission.')
+                                                if (!confirmed) return
+                                                try {
+                                                    await deleteNgoApplication(address)
+                                                } catch {}
+                                                try {
+                                                    const ngos = JSON.parse(localStorage.getItem('ngos') || '[]')
+                                                    const filtered = ngos.filter((n: any) => (n.connectedWalletAddress || n.walletAddress || '').toLowerCase() !== address.toLowerCase())
+                                                    localStorage.setItem('ngos', JSON.stringify(filtered))
+                                                } catch {}
+                                                setHasAlreadyApplied(false)
+                                                setExistingNgoData(null)
+                                            }}
+                                            className="bg-red-600 text-white rounded-full px-8 py-3 text-sm font-semibold hover:bg-red-700 transition-colors"
+                                        >
+                                            Withdraw Application
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 </section>
@@ -321,7 +577,7 @@ const BecomeanNgo = () => {
                           
                             <div className="mb-6">
                                 <label className="block text-sm font-medium text-black mb-2">
-                                    1. NGO Name <span className="text-red-500">*</span>
+                                    1. Organization Name <span className="text-red-500">*</span>
                                 </label>
                                 <input
                                     type="text"
@@ -332,46 +588,127 @@ const BecomeanNgo = () => {
                                 />
                             </div>
 
-                          
                             <div className="mb-6">
                                 <label className="block text-sm font-medium text-black mb-2">
-                                    2. Mission Statement / Description <span className="text-red-500">*</span>
+                                    2. Email Address <span className="text-red-500">*</span>
                                 </label>
-                                <textarea
-                                    value={missionStatement}
-                                    onChange={(e) => setMissionStatement(e.target.value)}
-                                    rows={6}
-                                    maxLength={300}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent resize-none"
-                                    placeholder="Describe what your organization does and the causes you support (max 300 words)"
+                                <input
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                                    placeholder="contact@yourngo.org"
                                 />
-                                <p className="text-sm text-gray-500 mt-1">{missionStatement.length}/300 characters</p>
                             </div>
 
+                            <div className="mb-6">
+                                <label className="block text-sm font-medium text-black mb-2">
+                                    3. Phone Number <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="tel"
+                                    value={phoneNumber}
+                                    onChange={(e) => setPhoneNumber(e.target.value)}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                                    placeholder="+1234567890"
+                                />
+                            </div>
+
+                            <div className="mb-6">
+                                <label className="block text-sm font-medium text-black mb-2">
+                                    4. Registration Number / CAC Number <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    value={registrationNumber}
+                                    onChange={(e) => setRegistrationNumber(e.target.value)}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                                    placeholder="Enter your registration number"
+                                />
+                            </div>
+
+                            <div className="mb-6">
+                                <label className="block text-sm font-medium text-black mb-2">
+                                    5. Year Founded <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="number"
+                                    value={yearFounded}
+                                    onChange={(e) => setYearFounded(e.target.value)}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                                    placeholder="2020"
+                                    min="1900"
+                                    max={new Date().getFullYear()}
+                                />
+                            </div>
                           
                             <div className="mb-6">
                                 <label className="block text-sm font-medium text-black mb-2">
-                                    3. Category <span className="text-red-500">*</span>
+                                    6. Website (Optional)
+                                </label>
+                                <input
+                                    type="url"
+                                    value={website}
+                                    onChange={(e) => setWebsite(e.target.value)}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                                    placeholder="https://yourngo.org"
+                                />
+                            </div>
+
+                            <div className="mb-6">
+                                <label className="block text-sm font-medium text-black mb-2">
+                                    7. Organization Type <span className="text-red-500">*</span>
+                                </label>
+                                <div className="relative">
+                                    <select
+                                        value={organizationType}
+                                        onChange={(e) => setOrganizationType(e.target.value)}
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                                    >
+                                        <option value="">Select organization type</option>
+                                        {organizationTypeOptions.map((type) => (
+                                            <option key={type} value={type}>{type}</option>
+                                        ))}
+                                    </select>
+                                    <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 pointer-events-none" size={20} />
+                                </div>
+                            </div>
+                          
+                            <div className="mb-6">
+                                <label className="block text-sm font-medium text-black mb-2">
+                                    8. Focus Areas / Causes <span className="text-red-500">*</span>
                                 </label>
                                 <div className="grid grid-cols-2 gap-2">
-                                    {categoryOptions.map((category) => (
-                                        <label key={category} className="flex items-center space-x-2 cursor-pointer">
+                                    {focusAreaOptions.map((area) => (
+                                        <label key={area} className="flex items-center space-x-2 cursor-pointer">
                                             <input
                                                 type="checkbox"
-                                                checked={categories.includes(category)}
-                                                onChange={() => handleCategoryToggle(category)}
+                                                checked={focusAreas.includes(area)}
+                                                onChange={() => handleFocusAreaToggle(area)}
                                                 className="w-4 h-4 text-black border-gray-300 rounded focus:ring-black focus:ring-2"
                                             />
-                                            <span className="text-sm text-black">{category}</span>
+                                            <span className="text-sm text-black">{area}</span>
                                         </label>
                                     ))}
                                 </div>
                             </div>
 
+                            <div className="mb-6">
+                                <label className="block text-sm font-medium text-black mb-2">
+                                    9. Address <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    value={addressInput}
+                                    onChange={(e) => setAddressInput(e.target.value)}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                                    placeholder="Enter your organization's official address"
+                                />
+                            </div>
                         
                             <div className="mb-6">
                                 <label className="block text-sm font-medium text-black mb-2">
-                                    4. Country of Operation <span className="text-red-500">*</span>
+                                    10. Country <span className="text-red-500">*</span>
                                 </label>
                                 <div className="relative">
                                     <select
@@ -390,45 +727,17 @@ const BecomeanNgo = () => {
                                     <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 pointer-events-none" size={20} />
                                 </div>
                             </div>
-
                           
                             <div className="mb-6">
                                 <label className="block text-sm font-medium text-black mb-2">
-                                    5. Office Address <span className="text-red-500">*</span>
+                                    11. State/Region <span className="text-red-500">*</span>
                                 </label>
                                 <input
                                     type="text"
-                                    value={officeAddress}
-                                    onChange={(e) => setOfficeAddress(e.target.value)}
+                                    value={stateRegion}
+                                    onChange={(e) => setStateRegion(e.target.value)}
                                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                                    placeholder="Enter your organization's official address"
-                                />
-                            </div>
-
-                          
-                            <div className="mb-6">
-                                <label className="block text-sm font-medium text-black mb-2">
-                                    6. Contact Email <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="email"
-                                    value={contactEmail}
-                                    onChange={(e) => setContactEmail(e.target.value)}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                                    placeholder="contact@yourngo.org"
-                                />
-                            </div>
-
-                            <div className="mb-6">
-                                <label className="block text-sm font-medium text-black mb-2">
-                                    7. Website or Social Media Link (Optional)
-                                </label>
-                                <input
-                                    type="url"
-                                    value={websiteLink}
-                                    onChange={(e) => setWebsiteLink(e.target.value)}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                                    placeholder="https://yourngo.org"
+                                    placeholder="Enter state or region"
                                 />
                             </div>
                         </div>
@@ -442,7 +751,65 @@ const BecomeanNgo = () => {
                           
                             <div className="mb-6">
                                 <label className="block text-sm font-medium text-black mb-2">
-                                    8. Registration Certificate <span className="text-red-500">*</span>
+                                    1. Upload your Logo <span className="text-red-500">*</span>
+                                </label>
+                                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                                    {logo ? (
+                                        <div className="flex items-center justify-center gap-2 text-green-600">
+                                            <CheckCircle size={20} />
+                                            <span>{logo.name}</span>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <Upload className="mx-auto mb-2 text-gray-400" size={32} />
+                                            <p className="text-sm text-gray-600">Upload image file</p>
+                                            <input
+                                                type="file"
+                                                accept=".jpg,.jpeg,.png"
+                                                onChange={(e) => handleFileInputChange(e, 'logo')}
+                                                className="hidden"
+                                                id="logo-upload"
+                                            />
+                                            <label htmlFor="logo-upload" className="mt-2 inline-block cursor-pointer text-sm text-blue-600 hover:text-blue-800">
+                                                Click to upload
+                                            </label>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="mb-6">
+                                <label className="block text-sm font-medium text-black mb-2">
+                                    2. Upload Annual Report / Portfolio <span className="text-red-500">*</span>
+                                </label>
+                                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                                    {annualReport ? (
+                                        <div className="flex items-center justify-center gap-2 text-green-600">
+                                            <CheckCircle size={20} />
+                                            <span>{annualReport.name}</span>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <Upload className="mx-auto mb-2 text-gray-400" size={32} />
+                                            <p className="text-sm text-gray-600">Upload PDF or image file</p>
+                                            <input
+                                                type="file"
+                                                accept=".pdf,.jpg,.jpeg,.png"
+                                                onChange={(e) => handleFileInputChange(e, 'annualReport')}
+                                                className="hidden"
+                                                id="annualReport-upload"
+                                            />
+                                            <label htmlFor="annualReport-upload" className="mt-2 inline-block cursor-pointer text-sm text-blue-600 hover:text-blue-800">
+                                                Click to upload
+                                            </label>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="mb-6">
+                                <label className="block text-sm font-medium text-black mb-2">
+                                    3. Upload Certificate of Registration <span className="text-red-500">*</span>
                                 </label>
                                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                                     {registrationCert ? (
@@ -462,66 +829,6 @@ const BecomeanNgo = () => {
                                                 id="registration-upload"
                                             />
                                             <label htmlFor="registration-upload" className="mt-2 inline-block cursor-pointer text-sm text-blue-600 hover:text-blue-800">
-                                                Click to upload
-                                            </label>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-
-                       
-                            <div className="mb-6">
-                                <label className="block text-sm font-medium text-black mb-2">
-                                    9. Proof of Address / Utility Bill <span className="text-red-500">*</span>
-                                </label>
-                                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                                    {proofOfAddress ? (
-                                        <div className="flex items-center justify-center gap-2 text-green-600">
-                                            <CheckCircle size={20} />
-                                            <span>{proofOfAddress.name}</span>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <Upload className="mx-auto mb-2 text-gray-400" size={32} />
-                                            <p className="text-sm text-gray-600">Upload PDF or image file</p>
-                                            <input
-                                                type="file"
-                                                accept=".pdf,.jpg,.jpeg,.png"
-                                                onChange={(e) => handleFileInputChange(e, 'address')}
-                                                className="hidden"
-                                                id="address-upload"
-                                            />
-                                            <label htmlFor="address-upload" className="mt-2 inline-block cursor-pointer text-sm text-blue-600 hover:text-blue-800">
-                                                Click to upload
-                                            </label>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-
-                         
-                            <div className="mb-6">
-                                <label className="block text-sm font-medium text-black mb-2">
-                                    10. Identity of Organization Head (Optional)
-                                </label>
-                                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                                    {organizerId ? (
-                                        <div className="flex items-center justify-center gap-2 text-green-600">
-                                            <CheckCircle size={20} />
-                                            <span>{organizerId.name}</span>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <Upload className="mx-auto mb-2 text-gray-400" size={32} />
-                                            <p className="text-sm text-gray-600">Upload PDF or image file</p>
-                                            <input
-                                                type="file"
-                                                accept=".pdf,.jpg,.jpeg,.png"
-                                                onChange={(e) => handleFileInputChange(e, 'id')}
-                                                className="hidden"
-                                                id="id-upload"
-                                            />
-                                            <label htmlFor="id-upload" className="mt-2 inline-block cursor-pointer text-sm text-blue-600 hover:text-blue-800">
                                                 Click to upload
                                             </label>
                                         </>
@@ -569,11 +876,16 @@ const BecomeanNgo = () => {
                                     13. Review Your Information
                                 </label>
                                 <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
-                                    <p><strong>NGO Name:</strong> {ngoName}</p>
-                                    <p><strong>Mission:</strong> {missionStatement.substring(0, 100)}...</p>
-                                    <p><strong>Categories:</strong> {categories.join(', ')}</p>
+                                    <p><strong>Organization Name:</strong> {ngoName}</p>
+                                    <p><strong>Email:</strong> {email}</p>
+                                    <p><strong>Phone:</strong> {phoneNumber}</p>
+                                    <p><strong>Registration Number:</strong> {registrationNumber}</p>
+                                    <p><strong>Year Founded:</strong> {yearFounded}</p>
+                                    <p><strong>Organization Type:</strong> {organizationType}</p>
+                                    <p><strong>Focus Areas:</strong> {focusAreas.join(', ')}</p>
                                     <p><strong>Country:</strong> {country}</p>
-                                    <p><strong>Email:</strong> {contactEmail}</p>
+                                    <p><strong>Address:</strong> {addressInput}</p>
+                                    <p><strong>State/Region:</strong> {stateRegion}</p>
                                 </div>
                             </div>
 
@@ -676,4 +988,3 @@ const BecomeanNgo = () => {
 }
 
 export default BecomeanNgo
-

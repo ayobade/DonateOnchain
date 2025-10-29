@@ -8,7 +8,9 @@ import {
   deleteDoc,
   updateDoc 
 } from 'firebase/firestore'
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
+import { getCampaignMetadataCid } from '../onchain/adapter'
+import { unpinCID } from './ipfs'
 
 //function to save data to Firestore
 export const saveToFirebase = async (collectionName: string, documentId: string, data: any) => {
@@ -82,6 +84,26 @@ export const deleteFromFirebase = async (collectionName: string, documentId: str
   }
 }
 
+// Design index (on-chain id -> IPFS cids)
+export const saveDesignIndex = async (designId: string, index: { metadataCid: string; previewCid?: string; designCid?: string }) => {
+  return await saveToFirebase('designIndex', designId, index)
+}
+
+export const getDesignIndex = async (designId: string) => {
+  return await getFromFirebase('designIndex', designId)
+}
+
+// Orders
+export const saveOrder = async (order: { buyer: string; items: any[]; totalHBAR: string; txHashes: string[]; createdAt?: string }) => {
+  const id = `${order.buyer.toLowerCase()}_${Date.now()}`
+  return await saveToFirebase('orders', id, { ...order, createdAt: new Date().toISOString() })
+}
+
+export const getOrdersByWallet = async (walletAddress: string) => {
+  const all = await getAllFromFirebase('orders')
+  return all.filter((o: any) => o.buyer?.toLowerCase() === walletAddress.toLowerCase())
+}
+
 // User-specific functions
 export const saveUserData = async (walletAddress: string, data: any) => {
   return await saveToFirebase('users', walletAddress.toLowerCase(), data)
@@ -93,20 +115,16 @@ export const getUserData = async (walletAddress: string) => {
 
 // Design-specific functions
 export const saveUserDesign = async (walletAddress: string, designId: string, data: any) => {
-
   const result = await saveToFirebase('userDesigns', `${walletAddress.toLowerCase()}_${designId}`, data)
-
   return result;
 }
 
 export const getUserDesigns = async (walletAddress: string) => {
-
   try {
     const allDesigns = await getAllFromFirebase('userDesigns');
     const userDesigns = allDesigns.filter((design: any) => 
       design.walletAddress?.toLowerCase() === walletAddress.toLowerCase()
     );
-  
     return userDesigns;
   } catch (error) {
     console.error('Error getting user designs:', error);
@@ -115,20 +133,16 @@ export const getUserDesigns = async (walletAddress: string) => {
 }
 
 export const saveNGODesign = async (ngoWallet: string, designId: string, data: any) => {
-
   const result = await saveToFirebase('ngoDesigns', `${ngoWallet.toLowerCase()}_${designId}`, data)
-
   return result;
 }
 
 export const getNGODesigns = async (ngoWallet: string) => {
-
   try {
     const allDesigns = await getAllFromFirebase('ngoDesigns');
     const ngoDesigns = allDesigns.filter((design: any) => 
       design.walletAddress?.toLowerCase() === ngoWallet.toLowerCase()
     );
-  
     return ngoDesigns;
   } catch (error) {
     console.error('Error getting NGO designs:', error);
@@ -149,13 +163,38 @@ export const removeFromGlobalDesigns = async (designId: string) => {
   return await deleteFromFirebase('alldesigns', designId)
 }
 
+export const deleteDesignEverywhere = async (designId: number) => {
+  try {
+    const index = await getDesignIndex(designId.toString())
+    const cids = [index?.metadataCid, index?.previewCid, index?.designCid].filter(Boolean)
+    for (const cid of cids) {
+      if (cid) {
+        try {
+          await unpinCID(cid)
+        } catch (e) {
+          console.warn(`Failed to unpin CID ${cid}:`, e)
+        }
+      }
+    }
+    await deleteFromFirebase('designIndex', designId.toString())
+    await removeFromGlobalDesigns(designId.toString())
+    
+    const existingDesigns = JSON.parse(localStorage.getItem('designs') || '[]')
+    const filtered = existingDesigns.filter((d: any) => (d.onchainId?.toString() || d.id?.toString()) !== designId.toString())
+    localStorage.setItem('designs', JSON.stringify(filtered))
+    
+    return true
+  } catch (e) {
+    console.error('Failed full deletion for design', designId, e)
+    return false
+  }
+}
+
 // Cart functions
 export const saveCart = async (walletAddress: string, cartItems: any) => {
   try {
-  
     const docId = walletAddress.toLowerCase();
     const result = await saveToFirebase('carts', docId, { items: cartItems });
-  
     return result;
   } catch (error) {
     console.error('Error saving cart:', error);
@@ -165,10 +204,8 @@ export const saveCart = async (walletAddress: string, cartItems: any) => {
 
 export const getCart = async (walletAddress: string) => {
   try {
-  
     const docId = walletAddress.toLowerCase();
     const result = await getFromFirebase('carts', docId);
-  
     return result?.items || [];
   } catch (error) {
     console.error('Error getting cart:', error);
@@ -182,7 +219,6 @@ export const savePurchase = async (walletAddress: string, purchaseData: any) => 
 }
 
 export const getUserPurchases = async (walletAddress: string) => {
-  // TODO: Implement filtering by wallet address when querying purchases
   const allPurchases = await getAllFromFirebase('purchases')
   return allPurchases.filter((purchase: any) => 
     purchase.purchasedBy?.toLowerCase() === walletAddress.toLowerCase()
@@ -194,7 +230,6 @@ export const saveDonation = async (walletAddress: string, donationData: any) => 
 }
 
 export const getUserDonations = async (walletAddress: string) => {
-  // TODO: Implement filtering by wallet address when querying donations
   const allDonations = await getAllFromFirebase('donations')
   return allDonations.filter((donation: any) => 
     donation.donorAddress?.toLowerCase() === walletAddress.toLowerCase()
@@ -203,31 +238,23 @@ export const getUserDonations = async (walletAddress: string) => {
 
 // User profile functions
 export const saveUserProfile = async (walletAddress: string, profileData: any) => {
-
   const result = await saveToFirebase('userProfiles', walletAddress.toLowerCase(), profileData);
-
   return result;
 }
 
 export const getUserProfile = async (walletAddress: string) => {
-
   const result = await getFromFirebase('userProfiles', walletAddress.toLowerCase());
-
   return result;
 }
 
 // NGO profile functions
 export const saveNgoProfile = async (walletAddress: string, profileData: any) => {
-
   const result = await saveToFirebase('ngoProfiles', walletAddress.toLowerCase(), profileData);
-
   return result;
 }
 
 export const getNgoProfile = async (walletAddress: string) => {
-
   const result = await getFromFirebase('ngoProfiles', walletAddress.toLowerCase());
-
   return result;
 }
 
@@ -420,6 +447,137 @@ export const getNgoApplicationByWallet = async (walletAddress: string) => {
   }
 }
 
+export const deleteNgoApplication = async (walletAddress: string) => {
+  try {
+    const docId = walletAddress.toLowerCase();
+    const result = await deleteFromFirebase('ngoApplications', docId)
+    return result
+  } catch (error) {
+    console.error('Error deleting NGO application:', error)
+    return false
+  }
+}
+
+export const updateNgoApplicationStatus = async (walletAddress: string, status: 'approved' | 'rejected', reason: string, approvalTransactionHash?: string) => {
+  try {
+    const docId = walletAddress.toLowerCase();
+    const docRef = doc(db, 'ngoApplications', docId);
+    const updateData: any = {
+      status: status,
+      rejectionReason: reason,
+      statusUpdatedAt: new Date().toISOString()
+    };
+    if (approvalTransactionHash) {
+      updateData.approvalTransactionHash = approvalTransactionHash;
+    }
+    await updateDoc(docRef, updateData);
+    return true
+  } catch (error) {
+    console.error('Error updating NGO application status:', error)
+    return false
+  }
+}
+
+export const saveDesignerApplication = async (designerData: any) => {
+  try {
+    const docId = designerData.walletAddress.toLowerCase();
+    const docRef = doc(db, 'designerApplications', docId);
+    await setDoc(docRef, designerData);
+    return true
+  } catch (error) {
+    console.error('Error saving designer application:', error)
+    return false
+  }
+}
+
+export const getDesignerApplicationByWallet = async (walletAddress: string) => {
+  try {
+    const docId = walletAddress.toLowerCase();
+    const docRef = doc(db, 'designerApplications', docId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return { id: docSnap.id, ...docSnap.data() };
+    }
+    return null
+  } catch (error) {
+    console.error('Error getting designer application:', error)
+    return null
+  }
+}
+
+export const deleteDesignerApplication = async (walletAddress: string) => {
+  try {
+    const docId = walletAddress.toLowerCase();
+    const docRef = doc(db, 'designerApplications', docId);
+    await deleteDoc(docRef);
+    return true
+  } catch (error) {
+    console.error('Error deleting designer application:', error)
+    return false
+  }
+}
+
+export const updateDesignerApplicationStatus = async (walletAddress: string, status: 'approved' | 'rejected', reason: string, approvalTransactionHash?: string) => {
+  try {
+    const docId = walletAddress.toLowerCase();
+    const docRef = doc(db, 'designerApplications', docId);
+    const updateData: any = {
+      status: status,
+      rejectionReason: reason,
+      statusUpdatedAt: new Date().toISOString()
+    };
+    if (approvalTransactionHash) {
+      updateData.approvalTransactionHash = approvalTransactionHash;
+    }
+    await updateDoc(docRef, updateData);
+    return true
+  } catch (error) {
+    console.error('Error updating designer application status:', error)
+    return false
+  }
+}
+
+export const getDesignerApplications = async () => {
+  try {
+    const querySnapshot = await getDocs(collection(db, 'designerApplications'))
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }))
+  } catch (error) {
+    console.error('Error getting all designer applications:', error)
+    return null
+  }
+}
+
+export const saveAdminList = async (adminAddresses: string[]) => {
+  try {
+    const docRef = doc(db, 'systemData', 'adminList');
+    await setDoc(docRef, {
+      admins: adminAddresses,
+      updatedAt: new Date().toISOString()
+    });
+    return true
+  } catch (error) {
+    console.error('Error saving admin list:', error)
+    return false
+  }
+}
+
+export const getAdminList = async () => {
+  try {
+    const docRef = doc(db, 'systemData', 'adminList');
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return docSnap.data().admins || [];
+    }
+    return []
+  } catch (error) {
+    console.error('Error getting admin list:', error)
+    return []
+  }
+}
+
 export const uploadFileToFirebase = async (walletAddress: string, file: File, folder: string): Promise<string | null> => {
   try {
     console.log(`Uploading file ${file.name} to ${folder} for ${walletAddress}`)
@@ -577,5 +735,48 @@ export const getAllCampaigns = async () => {
   } catch (error) {
     console.error('Error getting campaigns:', error)
     return JSON.parse(localStorage.getItem('campaigns') || '[]')
+  }
+}
+
+export const deleteCampaign = async (campaignId: number | string) => {
+  try {
+    const idStr = campaignId.toString()
+    await deleteFromFirebase('campaigns', idStr)
+    const existingCampaigns = JSON.parse(localStorage.getItem('campaigns') || '[]')
+    const filtered = existingCampaigns.filter((c: any) => (c.onchainId?.toString() || c.id?.toString()) !== idStr)
+    localStorage.setItem('campaigns', JSON.stringify(filtered))
+    return true
+  } catch (error) {
+    console.error('Error deleting campaign:', error)
+    return false
+  }
+}
+
+export const deleteCampaignStorageAssets = async (campaignId: number | string) => {
+  try {
+    const path = `campaignImages/${campaignId}/cover.png`
+    const storageRef = ref(storage, path)
+    await deleteObject(storageRef)
+    return true
+  } catch (e) {
+    console.warn('No campaign storage assets or failed to delete for', campaignId)
+    return false
+  }
+}
+
+export const deleteCampaignEverywhere = async (campaignId: number) => {
+  try {
+    try {
+      const cid = await getCampaignMetadataCid(BigInt(campaignId))
+      if (cid) { await unpinCID(cid) }
+    } catch (e) {
+      console.warn('Could not resolve/unpin campaign metadata CID for', campaignId)
+    }
+    await deleteCampaignStorageAssets(campaignId)
+    await deleteCampaign(campaignId)
+    return true
+  } catch (e) {
+    console.error('Failed full deletion for campaign', campaignId, e)
+    return false
   }
 }

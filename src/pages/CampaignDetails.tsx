@@ -7,9 +7,10 @@ import Banner from '../component/Banner'
 import CampaignCard from '../component/CampaignCard'
 import Button from '../component/Button'
 import EditCampaignModal from '../component/EditCampaignModal'
-import { Loader2, Check } from 'lucide-react'
+import { Loader2, Check, Gift } from 'lucide-react'
 import { campaigns as defaultCampaigns } from '../data/databank'
 import { getAllCampaigns, saveCampaign } from '../utils/firebaseStorage'
+import { donate, getCampaign as onchainGetCampaign, getDonationsByCampaign } from '../onchain/adapter'
 
 const CampaignDetails = () => {
     const { id } = useParams<{ id: string }>()
@@ -22,24 +23,49 @@ const CampaignDetails = () => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false)
     const [isUploadingCampaign, setIsUploadingCampaign] = useState(false)
     const [isCampaignUpdated, setIsCampaignUpdated] = useState(false)
+    const [isDonating, setIsDonating] = useState(false)
+    const [donationSuccess, setDonationSuccess] = useState(false)
+    const [donationError, setDonationError] = useState<string | null>(null)
+    const [txHash, setTxHash] = useState<string | null>(null)
 
     useEffect(() => {
         const loadCampaign = async () => {
             try {
-              
                 const firebaseCampaigns = await getAllCampaigns()
-              
-                const combined = [...firebaseCampaigns, ...defaultCampaigns]
-                
-              
-                const foundCampaign = combined.find(c => 
-                    c.id === parseInt(id || '1') || c.id?.toString() === id
+                const fallback = [...firebaseCampaigns, ...defaultCampaigns]
+                let found = fallback.find(c => 
+                    c.id === parseInt(id || '1') || 
+                    c.id?.toString() === id || 
+                    c.onchainId === parseInt(id || '1') ||
+                    c.onchainId?.toString() === id
                 )
-                
-                setCampaign(foundCampaign)
-                setAllCampaigns(combined.filter(c => 
-                    (c.id !== parseInt(id || '1') && c.id?.toString() !== id)
-                ))
+                try {
+                    const numericId = BigInt(id || '0')
+                    const chainCampaign = await onchainGetCampaign(numericId)
+                    let amountRaised = found?.amountRaised || 0
+                    try {
+                        const donations = await getDonationsByCampaign(numericId)
+                        amountRaised = donations.totalRaisedHBAR
+                    } catch {}
+                    found = {
+                        ...found,
+                        id: Number(numericId),
+                        onchainId: Number(numericId),
+                        title: chainCampaign.title || found?.title,
+                        description: chainCampaign.description || found?.description,
+                        goal: Number(chainCampaign.goalHBAR) / 1e18,
+                        ngoWallet: chainCampaign.ngo,
+                        image: chainCampaign.image || found?.image,
+                        amountRaised,
+                        percentage: 0,
+                        ngoName: found?.ngoName,
+                        active: chainCampaign.active ?? true,
+                    }
+                    const goal = found.goal || 0
+                    found.percentage = goal > 0 ? (amountRaised / goal) * 100 : 0
+                } catch {}
+                setCampaign(found)
+                setAllCampaigns(fallback.filter(c => (c.id !== parseInt(id || '1') && c.id?.toString() !== id)))
             } catch (error) {
                 console.error('Error loading campaign:', error)
                
@@ -84,10 +110,51 @@ const CampaignDetails = () => {
         )
     }
 
-    const handleDonate = () => {
-       
-        console.log('Donating to campaign:', campaign.title)
-        console.log('Amount:', donationAmount)
+    const handleDonate = async () => {
+        if (!donationAmount.trim() || !isConnected) return
+        const value = parseFloat(donationAmount)
+        if (Number.isNaN(value) || value <= 0) {
+            setDonationError('Please enter a valid amount')
+            return
+        }
+        
+        setIsDonating(true)
+        setDonationError(null)
+        setDonationSuccess(false)
+        setTxHash(null)
+        
+        try {
+            const campaignIdForChain = campaign?.onchainId ? BigInt(campaign.onchainId) : (campaign?.id ? BigInt(campaign.id) : BigInt(id || '0'))
+            const receipt = await donate({ campaignId: campaignIdForChain, valueHBAR: value })
+            setTxHash(receipt.transactionHash)
+            setDonationSuccess(true)
+            setDonationAmount('')
+            
+            const numericId = BigInt(id || '0')
+            const donations = await getDonationsByCampaign(numericId)
+            const goal = campaign.goal || campaign.target || 0
+            const updatedAmountRaised = donations.totalRaisedHBAR
+            const updatedPercentage = goal > 0 ? (updatedAmountRaised / goal) * 100 : 0
+            
+            setCampaign({
+                ...campaign,
+                amountRaised: updatedAmountRaised,
+                percentage: updatedPercentage
+            })
+            
+            setTimeout(() => {
+                setDonationSuccess(false)
+                setTxHash(null)
+            }, 5000)
+        } catch (e: any) {
+            console.error('Donation failed', e)
+            setDonationError(e?.message || 'Donation failed. Please try again.')
+            setTimeout(() => {
+                setDonationError(null)
+            }, 5000)
+        } finally {
+            setIsDonating(false)
+        }
     }
 
     return (
@@ -123,8 +190,8 @@ const CampaignDetails = () => {
                   
                     <div className="mb-12">
                         {(() => {
-                            const goal = campaign.goal || campaign.target || 0
-                            const amountRaised = campaign.amountRaised || 0
+                            const goal = Number(campaign.goal || campaign.target || 0)
+                            const amountRaised = Number(campaign.amountRaised || 0)
                             const percentage = campaign.percentage || (goal > 0 ? (amountRaised / goal) * 100 : 0)
                             return (
                                 <>
@@ -136,7 +203,7 @@ const CampaignDetails = () => {
                                         >
                                             
                                             <div className="absolute left-0 top-0 h-full flex items-center px-6 min-w-fit">
-                                                <span className="text-xl font-semibold text-black whitespace-nowrap">₦{amountRaised.toLocaleString()}</span>
+                                                <span className="text-xl font-semibold text-black whitespace-nowrap">{amountRaised.toFixed(2)} HBAR</span>
                                             </div>
                                         </div>
                                         
@@ -148,7 +215,7 @@ const CampaignDetails = () => {
                                     
                                   
                                     <div className="mt-2 text-right">
-                                        <span className="text-base text-gray-600">of ₦{goal.toLocaleString()}</span>
+                                        <span className="text-base text-gray-600">of {goal.toFixed(2)} HBAR</span>
                                     </div>
                                 </>
                             )
@@ -167,31 +234,48 @@ const CampaignDetails = () => {
                             </Button>
                         ) : (
                             <>
+                                {campaign.active === false && (
+                                    <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                        <p className="text-sm text-yellow-800">
+                                            ⚠️ This campaign is currently inactive. Donations are not being accepted at this time.
+                                        </p>
+                                    </div>
+                                )}
                                 <div className="mb-4">
                                     <label className="block text-sm font-medium text-black mb-2">
-                                        Enter Amount
+                                        Enter Amount (HBAR)
                                     </label>
                                     <div className="relative">
-                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg text-gray-500">₦</span>
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg text-gray-500">HBAR</span>
                                         <input
-                                            type="text"
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
                                             value={donationAmount}
                                             onChange={(e) => setDonationAmount(e.target.value)}
-                                            placeholder="0"
-                                            className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-[#4ADE80] focus:border-transparent"
-                                            disabled={!isConnected}
+                                            placeholder="0.00"
+                                            className="w-full pl-16 pr-4 py-3 border border-gray-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-[#4ADE80] focus:border-transparent"
+                                            disabled={!isConnected || isDonating || campaign.active === false}
                                         />
                                     </div>
+                                    {donationError && (
+                                        <p className="mt-2 text-sm text-red-600">{donationError}</p>
+                                    )}
                                 </div>
                                 <Button 
                                     variant="primary-bw"
                                     size="lg"
                                     onClick={handleDonate}
                                     className="w-full rounded-lg py-4 text-lg"
-                                    disabled={!donationAmount.trim() || !isConnected}
+                                    disabled={!donationAmount.trim() || !isConnected || isDonating || campaign.active === false}
                                 >
-                                    {isConnected ? 'Make Donation' : 'Connect Wallet to Donate'}
+                                    {isDonating ? 'Processing Donation...' : campaign.active === false ? 'Campaign Inactive' : isConnected ? 'Make Donation' : 'Connect Wallet to Donate'}
                                 </Button>
+                                {!isConnected && campaign.active !== false && (
+                                    <p className="mt-2 text-sm text-gray-600 text-center">
+                                        Connect your wallet to make a donation and receive a proof-of-donation NFT
+                                    </p>
+                                )}
                             </>
                         )}
                     </div>
@@ -331,6 +415,36 @@ const CampaignDetails = () => {
                         </div>
                         <h2 className="text-2xl font-bold mb-2">Campaign Updated!</h2>
                         <p className="text-gray-600">Your campaign has been successfully updated.</p>
+                    </div>
+                </div>
+            )}
+            
+            {isDonating && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                    <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 text-center">
+                        <Loader2 className="w-16 h-16 mx-auto mb-4 animate-spin text-black" />
+                        <h2 className="text-2xl font-bold mb-2">Processing Donation</h2>
+                        <p className="text-gray-600">Please wait while we process your donation...</p>
+                    </div>
+                </div>
+            )}
+            
+            {donationSuccess && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                    <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 text-center">
+                        <div className="w-16 h-16 mx-auto mb-4 bg-green-500 rounded-full flex items-center justify-center">
+                            <Gift className="w-8 h-8 text-white" />
+                        </div>
+                        <h2 className="text-2xl font-bold mb-2">Donation Successful!</h2>
+                        <p className="text-gray-600 mb-4">Your donation has been processed. A proof-of-donation NFT has been minted to your wallet.</p>
+                        {txHash && (
+                            <p className="text-sm text-gray-500 mb-4 break-all">
+                                Transaction: {txHash.slice(0, 10)}...{txHash.slice(-8)}
+                            </p>
+                        )}
+                        <p className="text-sm text-gray-600">
+                            Funds have been automatically split: 70% to NGO, 20% to Designer, 10% to Platform
+                        </p>
                     </div>
                 </div>
             )}

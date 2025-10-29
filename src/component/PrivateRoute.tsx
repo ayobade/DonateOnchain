@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { useAccount } from 'wagmi'
 
 interface PrivateRouteProps {
@@ -6,10 +6,16 @@ interface PrivateRouteProps {
 }
 
 const PrivateRoute = ({ children }: PrivateRouteProps) => {
-    const { isConnected } = useAccount()
+    const { isConnected, status } = useAccount()
+    const location = useLocation()
 
-    if (!isConnected) {
-        return <Navigate to="/" replace />
+    // Defer redirect while wallet is connecting/reconnecting on page refresh
+    if (status === 'connecting' || status === 'reconnecting') {
+        return null
+    }
+
+    if (!isConnected && status === 'disconnected') {
+        return <Navigate to="/" replace state={{ from: location }} />
     }
 
     return <>{children}</>
