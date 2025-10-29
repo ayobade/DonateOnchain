@@ -1,3 +1,4 @@
+// @ts-ignore external JS module without typings
 import CONTRACTS from '../../frontend/src/contracts/addresses.js'
 import AdminRegistryAbi from '../../frontend/src/contracts/AdminRegistry.sol.abi.json'
 import NGORegistryAbi from '../../frontend/src/contracts/NGORegistry.sol.abi.json'
@@ -11,14 +12,14 @@ import DesignMarketplaceAbi from '../../frontend/src/contracts/DesignMarketplace
 export const addresses = CONTRACTS
 
 export const abis = {
-  AdminRegistry: AdminRegistryAbi as const,
-  NGORegistry: NGORegistryAbi as const,
-  DesignerRegistry: DesignerRegistryAbi as const,
-  FileManager: FileManagerAbi as const,
-  CampaignRegistry: CampaignRegistryAbi as const,
-  DonationManager: DonationManagerAbi as const,
-  ProofNFT: ProofNFTAbi as const,
-  DesignMarketplace: DesignMarketplaceAbi as const,
+  AdminRegistry: AdminRegistryAbi,
+  NGORegistry: NGORegistryAbi,
+  DesignerRegistry: DesignerRegistryAbi,
+  FileManager: FileManagerAbi,
+  CampaignRegistry: CampaignRegistryAbi,
+  DonationManager: DonationManagerAbi,
+  ProofNFT: ProofNFTAbi,
+  DesignMarketplace: DesignMarketplaceAbi,
 }
 
 export type AddressMap = typeof addresses

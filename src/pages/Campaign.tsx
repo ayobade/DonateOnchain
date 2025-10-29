@@ -8,7 +8,6 @@ import FilterButton from '../component/FilterButton'
 import { SkeletonCampaignCard } from '../component/Skeleton'
 import ShopImg from '../assets/ShopImg.png'
 import { ChevronDown } from 'lucide-react'
-import { campaigns as defaultCampaigns } from '../data/databank'
 import { getAllCampaigns } from '../utils/firebaseStorage'
 import { syncCampaignsWithOnChain, listAllCampaignsFromChain } from '../onchain/adapter'
 

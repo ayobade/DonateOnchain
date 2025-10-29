@@ -56,8 +56,6 @@ const AdminPage = () => {
   const [adminPage, setAdminPage] = useState(0)
   const [activeCampaignsDesignTab, setActiveCampaignsDesignTab] = useState<'campaigns' | 'designs'>('campaigns')
   const [activeCreatorsTab, setActiveCreatorsTab] = useState<'ngos' | 'designers'>('ngos')
-  const [donationsPage, setDonationsPage] = useState(0)
-  const [ordersPage, setOrdersPage] = useState(0)
   const [pendingNgoPage, setPendingNgoPage] = useState(0)
   const [approvedNgoPage, setApprovedNgoPage] = useState(0)
   const [rejectedNgoPage, setRejectedNgoPage] = useState(0)
